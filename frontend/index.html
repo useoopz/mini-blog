@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>这是Lin's blog</title>
+</head>
+
+<body>
+    <h1>欢迎来到我的网页,这是第一天的工作</h1>
+    <input id="title" placeholder="请输入标题">
+    <input id="content" placeholder="请输入内容">
+    <button onclick="add_passage()">提交</button>
+    <ul id="list"></ul>
+    <script>
+        async function passage() {
+            const list = document.getElementById("list");
+            const response = await fetch("/passage", {
+                method: "get",
+                headers: {
+                    "content-type": "application/json"
+                }
+            })
+            const data = await response.json();
+            list.innerHTML = ""
+            for (const j of data) {
+                const li = document.createElement("li");
+                li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]
+                list.appendChild(li)
+            }
+        }
+        async function add_passage(){
+            const list1=document.getElementById("title").value
+            const list2=document.getElementById("content").value
+            const response = await fetch("/passage_add", {
+                method: "post",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({"title":list1,"content":list2})
+            })
+            const err=await response.json()
+            if (response.ok){passage()}
+            else{alert(err.detail[0].msg)}
+        }
+        passage()
+    </script>
+</body>
+
+</html>
