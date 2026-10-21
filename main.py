@@ -5,6 +5,7 @@ import time
 from pydantic import BaseModel,Field
 import bcrypt
 import jwt
+from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 
 class AddPassage(BaseModel):
     title: str=Field(min_length=1)
@@ -16,7 +17,8 @@ class UserLogin(BaseModel):
     username: str
     password: str
 app=FastAPI()
-
+secret="my_now_secret"
+oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/user_login")
 conn=sqlite3.connect("mini-blog.db")
 cursor=conn.cursor()
 cursor.execute("""CREATE TABLE IF NOT EXISTS passage(
@@ -33,6 +35,12 @@ hashpassword TEXT
 )""" )
 conn.commit()
 conn.close()
+def get_current_user(token: str =Depends(oauth2_scheme)):
+    try:
+        payload=jwt.decode(token,secret,algorithms=["HS256"])
+        return payload["username"]
+    except jwt.InvalidTokenError:
+        raise HTTPException(401,"token无效或已过期")
 def hash_passaword(password):#LOOKUPhttps://docs.pingcode.com/baike/829063
     salt=bcrypt.gensalt()
     hashpassaword=bcrypt.hashpw(password.encode(),salt)
@@ -50,7 +58,7 @@ def read_passage(db=Depends(get_db)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogo
     row=[dict(r) for r in rows]
     return row
 @app.post("/passage_add")
-def passage_add(passage: AddPassage,db=Depends(get_db)):
+def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
     cursor=db.cursor()
     date=time.strftime("%Y-%m-%d %H-%M-%S",time.localtime())
     cursor.execute("INSERT INTO passage (title,content,date) VALUES (?,?,?)",(passage.title,passage.content,date))
@@ -69,7 +77,7 @@ def user_register(user:UserRegister,db=Depends(get_db)):#LOOKUPhttps://blog.csdn
         db.commit()
         return{"message":"注册成功"}   
 @app.post("/user_login")
-def user_login(user:UserLogin,db=Depends(get_db)):
+def user_login(user:OAuth2PasswordRequestForm=Depends(),db=Depends(get_db)):
     cursor=db.cursor()
     cursor.execute("SELECT hashpassword FROM user WHERE username=?",(user.username,))
     row=cursor.fetchone() 
@@ -77,8 +85,7 @@ def user_login(user:UserLogin,db=Depends(get_db)):
         raise HTTPException(401,"用户或密码错误")
     flag=bcrypt.checkpw(user.password.encode(),row[0].encode())
     if flag: 
-        secret="my_now_secret"
-        payload={"user_name":user.username,"exp":time.time()+3600}
+        payload={"username":user.username,"exp":time.time()+3600}
         token=jwt.encode(payload,secret,algorithm="HS256")
         return{"message":"登陆成功","access_token":token}
     else:
