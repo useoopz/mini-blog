@@ -25,7 +25,8 @@
             list.innerHTML = ""
             for (const j of data) {
                 const li = document.createElement("li");
-                li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]
+                j["author"]??="佚名"
+                li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]
                 list.appendChild(li)
             }
         }

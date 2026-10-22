@@ -34,6 +34,11 @@ username TEXT,
 hashpassword TEXT
 )""" )
 conn.commit()
+cursor.execute("PRAGMA table_info(passage)")
+row=[r[1] for r in cursor.fetchall()]
+if "author" not in row:
+    cursor.execute("ALTER TABLE passage ADD COLUMN author TEXT")
+    conn.commit()
 conn.close()
 def get_current_user(token: str =Depends(oauth2_scheme)):
     try:
@@ -61,7 +66,7 @@ def read_passage(db=Depends(get_db)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogo
 def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
     cursor=db.cursor()
     date=time.strftime("%Y-%m-%d %H-%M-%S",time.localtime())
-    cursor.execute("INSERT INTO passage (title,content,date) VALUES (?,?,?)",(passage.title,passage.content,date))
+    cursor.execute("INSERT INTO passage (title,content,date,author) VALUES (?,?,?,?)",(passage.title,passage.content,date,current_user))
     db.commit()
     return{"message":"发布成功"}
 @app.post("/user_register")
