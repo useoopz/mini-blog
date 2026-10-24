@@ -13,36 +13,54 @@
     <button onclick="add_passage()">提交</button>
     <ul id="list"></ul>
     <script>
+
+        if (!localStorage.getItem("access_token")) {
+            location.href = "/login.html";
+        }
         async function passage() {
-            const list = document.getElementById("list");
-            const response = await fetch("/passage", {
-                method: "get",
-                headers: {
-                    "content-type": "application/json"
+            if (!localStorage.getItem("access_token")){
+                return
+            }
+            else{const list = document.getElementById("list");
+                const response = await fetch("/passage", {
+                    method: "get",
+                    headers: {
+                        "content-type": "application/json",
+                        "Authorization": "Bearer " + localStorage.getItem("access_token")
+                    }
+                })
+                if (response.status === 401) { // token 过期/无效 → 踢回登录页
+                    localStorage.removeItem("access_token");
+                    location.href = "/login.html";
+                    return;
                 }
-            })
-            const data = await response.json();
-            list.innerHTML = ""
-            for (const j of data) {
-                const li = document.createElement("li");
-                j["author"]??="佚名"
-                li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]
-                list.appendChild(li)
+                const data = await response.json();
+                list.innerHTML = ""
+                for (const j of data) {
+                    const li = document.createElement("li");
+                    j["author"]??="佚名"
+                    li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]
+                    list.appendChild(li)
+                }
             }
         }
         async function add_passage(){
-            const list1=document.getElementById("title").value
-            const list2=document.getElementById("content").value
-            const response = await fetch("/passage_add", {
-                method: "post",
-                headers: {
-                    "content-type": "application/json"
-                },
-                body: JSON.stringify({"title":list1,"content":list2})
-            })
-            const err=await response.json()
-            if (response.ok){passage()}
-            else{alert(err.detail[0].msg)}
+                const title=document.getElementById("title").value
+                const content=document.getElementById("content").value
+                const response = await fetch("/passage_add", {
+                    method: "post",
+                    headers: {
+                        "content-type": "application/json",
+                        "Authorization": "Bearer " + localStorage.getItem("access_token")
+                    },
+                    body: JSON.stringify({"title":title,"content":content})
+                })
+                const err=await response.json()
+                if (response.ok){passage()}
+                else if(response.status==401){localStorage.removeItem("access_token");location.href="/login.html"}
+                else if(response.status==422){alert(err.detail[0].msg)}
+                else{alert("出现了些故障")}
+            
         }
         passage()
     </script>

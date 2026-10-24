@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>登录 - Lin's blog</title>
+</head>
+
+<body>
+    <h1>登录</h1>
+    <input id="username" placeholder="用户名">
+    <input id="password" type="password" placeholder="密码">
+    <button onclick="do_login()">登录</button>
+    <p id="error" style="color: red; display: none;"></p>
+    <script>
+        // 已带 token 就不用再登录了
+        if (localStorage.getItem("access_token")) {
+            location.href = "/";
+        }
+        async function do_login() {
+            const error_p = document.getElementById("error");
+            error_p.style.display = "none";
+            // /user_login 是 OAuth2PasswordRequestForm，收的是表单数据不是 JSON
+            const form = new URLSearchParams();
+            form.append("username", document.getElementById("username").value);
+            form.append("password", document.getElementById("password").value);
+            const response = await fetch("/user_login", {
+                method: "post",
+                headers: {
+                    "content-type": "application/x-www-form-urlencoded"
+                },
+                body: form
+            })
+            const data = await response.json();
+            if (response.ok) {
+                localStorage.setItem("access_token", data.access_token);
+                location.href = "/";
+            } else {
+                // 登录失败：页面内红字提示
+                error_p.textContent = data.detail;
+                error_p.style.display = "block";
+            }
+        }
+    </script>
+</body>
+
+</html>

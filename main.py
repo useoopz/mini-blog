@@ -55,7 +55,7 @@ def get_db():
     yield conn
     conn.close()#LOOKUPhttps://blog.csdn.net/mieleizhi0522/article/details/82142856
 @app.get("/passage")
-def read_passage(db=Depends(get_db)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
+def read_passage(db=Depends(get_db),current_user=Depends(get_current_user)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
     db.row_factory=sqlite3.Row
     cursor=db.cursor()
     cursor.execute("SELECT * FROM passage")
