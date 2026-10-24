@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>注册 - Lin's blog</title>
+</head>
+
+<body>
+    <h1>注册</h1>
+    <input id="username" placeholder="用户名">
+    <input id="password" type="password" placeholder="密码">
+    <button onclick="do_register()">注册</button>
+    <p id="error" style="color: red; display: none;"></p>
+    <p>已有账号？<a href="login.html">去登录</a></p>
+    <script>
+        async function do_register() {
+            const error_p = document.getElementById("error");
+            error_p.style.display = "none";
+            const response = await fetch("/user_register", {
+                method: "post",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    username: document.getElementById("username").value,
+                    password: document.getElementById("password").value
+                })
+            })
+            const data = await response.json();
+            if (response.ok) {
+                location.href = "login.html";
+            } else {
+                // 用户名/密码少于 3 位时 FastAPI 校验失败返回 422，detail 是数组不是字符串
+                error_p.textContent = Array.isArray(data.detail) ? "用户名和密码至少 3 个字符" : data.detail;
+                error_p.style.display = "block";
+            }
+        }
+    </script>
+</body>
+
+</html>

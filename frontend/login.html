@@ -12,6 +12,7 @@
     <input id="password" type="password" placeholder="密码">
     <button onclick="do_login()">登录</button>
     <p id="error" style="color: red; display: none;"></p>
+    <p>没有账号？<a href="register.html">去注册</a></p>
     <script>
         // 已带 token 就不用再登录了
         if (localStorage.getItem("access_token")) {
