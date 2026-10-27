@@ -1,2 +1,26 @@
-# conftest.py —— pytest 的共享配置入口
-# 放在项目根，让 pytest 把项目根加入 sys.path（测试文件才能 import main）
+import sqlite3
+import pytest
+from main import app,get_db
+conn=sqlite3.connect(":memory:" ,check_same_thread=False)
+cursor=conn.cursor()
+cursor.execute("""CREATE TABLE IF NOT EXISTS passage(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+title TEXT,
+content TEXT,
+date TEXT,
+author TEXT
+)""" )
+conn.commit()
+cursor.execute("""CREATE TABLE IF NOT EXISTS user(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+username TEXT,
+hashpassword TEXT
+)""" )
+conn.commit()
+def override_get_db():
+    yield conn
+app.dependency_overrides[get_db] = override_get_db
+@pytest.fixture(autouse=True)
+def clear():
+    yield
+    
