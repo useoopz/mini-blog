@@ -25,7 +25,8 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS passage(
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 title TEXT,
 content TEXT,
-date TEXT
+date TEXT,
+author TEXT
 )""" )#LOOKUPhttps://blog.csdn.net/m0_57545130/article/details/154491362#LOOKUPhttps://blog.csdn.net/chenlibao0823/article/details/104591359
 conn.commit()
 cursor.execute("""CREATE TABLE IF NOT EXISTS user(
