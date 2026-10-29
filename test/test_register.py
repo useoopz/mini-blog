@@ -1,9 +1,8 @@
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from main import app
 
-client=TestClient(app)
-def test_register():
+
+def test_register(client):
     name="adm1"
     password="adadm1"
     response=client.post("/user_register",
@@ -12,7 +11,7 @@ def test_register():
                             )
     assert response.status_code==200
     assert response.json()["message"]=="注册成功"
-def test_register_duplicate():
+def test_register_duplicate(client):
     name="adm"
     password="adm1"
     password1="adm2"
@@ -24,7 +23,7 @@ def test_register_duplicate():
                             json={"username":name,"password":password1},)
     assert response1.status_code==404
     assert response1.json()["detail"]=="用户名已存在"
-def test_register_short_password():
+def test_register_short_password(client):
     name="an"
     password="adad1"
     response=client.post("/user_register",
@@ -32,7 +31,7 @@ def test_register_short_password():
                         json={"username":name,"password":password},
                                 )
     assert response.status_code==422
-def test_register_short_username():
+def test_register_short_username(client):
     r = client.post("/user_register",
                     headers={"content-type": "application/json"},
                     json={"username":"ab","password":"pass123"})
