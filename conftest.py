@@ -22,5 +22,9 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 @pytest.fixture(autouse=True)
 def clear():
+    conn.execute("DELETE FROM user")
+    conn.execute("DELETE FROM passage")
+    conn.commit()
     yield
+    
     

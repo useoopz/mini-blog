@@ -88,14 +88,14 @@ def user_login(user:OAuth2PasswordRequestForm=Depends(),db=Depends(get_db)):
     cursor.execute("SELECT hashpassword FROM user WHERE username=?",(user.username,))
     row=cursor.fetchone() 
     if row is None:
-        raise HTTPException(401,"用户或密码错误")
+        raise HTTPException(401,"用户名或密码错误")
     flag=bcrypt.checkpw(user.password.encode(),row[0].encode())
     if flag: 
         payload={"username":user.username,"exp":time.time()+3600}
         token=jwt.encode(payload,secret,algorithm="HS256")
         return{"message":"登陆成功","access_token":token}
     else:
-        raise HTTPException(401,"用户或密码错误")
+        raise HTTPException(401,"用户名或密码错误")
     
 app.mount("/",StaticFiles(directory="frontend",html=True))#LOOKUPhttps://fastapi.tiangolo.com/zh/tutorial/static-files/#use-staticfiles
 if __name__=="__main__":
