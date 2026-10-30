@@ -1,9 +1,9 @@
 # mini-blog 项目交接文档
 
-> **生成日期**：2026-10-18
-> **资料来源**：`.workbuddy/memory/` 下的 `MEMORY.md` 与 `2026-10-12 ~ 2026-10-17` 每日日志
+> **生成日期**：2026-10-18（最后更新 2026-10-30）
+> **资料来源**：`.workbuddy/memory/` 下的 `MEMORY.md` 与 `2026-10-12 ~ 2026-10-30` 每日日志
 > **读者**：接手这个项目的人（或隔一段时间回来的作者本人）
-> **阅读建议**：赶时间只看 §0；接手第一天照 §7 做
+> **阅读建议**：赶时间只看 §0；接手第一天照 §7 做；测试相关直接看 §9
 
 ---
 
@@ -11,11 +11,11 @@
 
 | 项 | 内容 |
 |---|---|
-| **是什么** | 一个**从零手写**的迷你博客：文章列表 + 发帖。FastAPI + SQLite + 原生 JS，无框架 |
+| **是什么** | 一个**从零手写**的迷你博客：注册 / 登录 / 发帖 / 看文章。FastAPI + SQLite + 原生 JS，无框架 |
 | **在哪** | `D:\mini-blog\`（本地）｜`https://github.com/useoopz/mini-blog`（公开） |
-| **能跑什么** | 首页显示全部文章；填标题+正文点提交，写库并自动刷新列表；空标题被后端拒绝并弹提示 |
-| **代码量** | `main.py` 47 行 / `frontend/index.html` 50 行 / `requirements.txt` 2 个包 |
-| **当前状态** | 能跑、有版本控制、有 GitHub。**没有登录、没有分页、没有测试、没有 CSS** |
+| **能跑什么** | 未登录跳登录页；注册 → 登录拿 token → 首页显示全部文章（带作者名）；填标题+正文点提交，写库并自动刷新；空标题被后端拒绝并弹提示 |
+| **代码量（2026-10-30 实测）** | `main.py` 102 行 / `frontend/` 三个页面 64+44+39 行 / `conftest.py` 48 行 / `test/` 三个文件 87 行 |
+| **当前状态** | 能跑、有 JWT 鉴权、**10 个测试全绿**、有 GitHub。**没有分页、没有 CSS、没有编辑删除** |
 | **下一步** | 写 README → 加登录 → 补分页 |
 
 **一分钟跑起来**：
@@ -71,6 +71,11 @@ D:\code\python\python.exe -m uvicorn main:app --reload
 | Day 4 | 10-15 | 每条显示自己的字段；接口从"数组套数组"改成**对象列表**；地址去写死（根相对）；**发帖表单** |
 | Day 5 | 10-16 | **反静默**：后端会拒绝（`Field(min_length=1)` → 422）、前端会说话（`response.ok` + 弹提示） |
 | Day 6 | 10-17 | **建 Git 仓库 + 上 GitHub**；算法开个头（LeetCode 1） |
+| Day 7 | 10-18 | 修完两数之和（0ms）+ 217；**curl 攻坚**（PS 5.1 别名 / 引号被吃 / BOM 三个坑）；写 README 并 push |
+| Day 8-10 | 10-19 ~ 10-21 | 用户系统：`/user_register`（bcrypt）、`/user_login`（OAuth2 表单 + JWT）、`get_current_user` 鉴权；`author` 字段迁移（`PRAGMA table_info` + `ALTER TABLE`） |
+| Day 11-15 | 10-22 ~ 10-26 | 前端三页：`index.html` 门禁、`login.html`、`register.html`；401 分支与 `err.detail` 分型显示；算法刷到 20 题 |
+| Day 16-18 | 10-27 ~ 10-29 | **pytest 从零**：`ModuleNotFoundError` 排查、内存库隔离、`dependency_overrides`、三个 fixture |
+| Day 19-20 | 10-30 | `test_auth.py` 三用例补齐 → **10 个测试全绿**；496 单调栈；本文档补 §9 |
 
 ### 2.2 关键决策（每条都有代价，不是"最佳实践"）
 
@@ -94,27 +99,46 @@ D:\code\python\python.exe -m uvicorn main:app --reload
 
 ```
 D:\mini-blog\
-├── main.py               47 行 · 整个后端
-├── requirements.txt      2 个包（fastapi / uvicorn）
-├── .gitignore            __pycache__/  *.db
-├── mini-blog.db          SQLite 数据库（不进仓库，当前 7 条）
+├── main.py               102 行 · 整个后端（模型 / 建表 / 鉴权 / 6 个路由 / 静态托管）
+├── requirements.txt      2 个包（fastapi / uvicorn）⚠️ 漏了 bcrypt / pyjwt
+├── conftest.py           48 行 · 测试夹具（内存库 + 4 个 fixture）
+├── test/
+│   ├── test_register.py  36 行 · 注册四用例
+│   ├── test_login.py     32 行 · 登录三用例
+│   └── test_auth.py      19 行 · 鉴权三用例
+├── .gitignore            __pycache__/  *.db  post.json
+├── mini-blog.db          SQLite 数据库（不进仓库，两张表 passage / user）
 ├── frontend/
-│   └── index.html        50 行 · 整个前端（HTML + JS）
+│   ├── index.html        64 行 · 首页（门禁 + 列表 + 发帖）
+│   ├── login.html        44 行 · 登录页
+│   └── register.html     39 行 · 注册页
 └── __pycache__/          Python 缓存（不进仓库）
 ```
 
-### 3.2 `main.py` —— 一个文件装了四件事（**按执行顺序**）
+### 3.2 `main.py` —— 一个文件装了六件事（**按执行顺序**）
 
 | 区段 | 行 | 干什么 | 关键点 |
 |---|---|---|---|
-| **① 数据模型** | 7-9 | `class AddPassage(BaseModel)` 定义"发过来的数据该长什么样" | `title` / `content` 都带 `Field(min_length=1)` → **空字符串会被拒** |
-| **② 一次性初始化** | 13-22 | 连库 → `CREATE TABLE IF NOT EXISTS` → `commit` → `close` | 这段在**模块级**，服务启动时**只跑一次** |
-| **③ 连接工厂** | 23-26 | `get_db()`：每请求新建一条连接，`yield` 出去，用完 `close` | 用 `Depends(get_db)` 注入 |
-| **④ 两个路由** | 27-41 | `GET /passage` 读全部；`POST /passage_add` 写一条 | 都放在 `mount("/")` **之前** |
-| **⑤ 静态托管** | 43 | `mount("/", StaticFiles(directory="frontend", html=True))` | **必须在所有路由之后** |
-| **⑥ 启动块** | 44-46 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)` | ⚠️ 部署到服务器要改 `host="0.0.0.0"` |
+| **① 配置与模型** | 1-25 | `secret`、`oauth2_scheme`、`AddPassage` / `UserRegister` 两个模型 | `secret` 硬编码 13 字节（技术债）；两个模型的字段都带 `Field(min_length=...)` |
+| **② 一次性初始化** | 26-45 | 连库 → 建 `passage` / `user` 两张表 → **`PRAGMA table_info` 检查 `author` 列** → 缺则 `ALTER TABLE` 补 | 这段在**模块级**，启动只跑一次。`CREATE TABLE IF NOT EXISTS` **不会改旧表**，所以加字段必须走 `ALTER` |
+| **③ 鉴权依赖** | 46-52 | `get_current_user()`：`jwt.decode` → 失败抛 401 | `except jwt.InvalidTokenError` → `"token无效或已过期"` |
+| **④ 连接工厂** | — | `get_db()`：每请求新建连接，`yield` → `close` | `yield conn` 而不是 `yield conn.close()`（§4 坑一） |
+| **⑤ 六个路由** | 53-100 | 注册 / 登录 / 读文章 / 发文章 / 静态页 | **全部在 `mount("/")` 之前** |
+| **⑥ 静态托管** | 101 | `mount("/", StaticFiles(directory="frontend", html=True))` | **必须在所有路由之后** |
+| **⑦ 启动块** | 102-103 | `uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)` | 已改 `0.0.0.0` ✅ |
 
-**两个路由的细节**
+**路由清单**
+
+| 方法 | 路径 | 请求体格式 | 鉴权 | 返回 |
+|---|---|---|---|---|
+| POST | `/user_register` | **JSON** `{"username","password"}` | 无 | `{"message":"注册成功"}` / 404 用户名已存在 / 422 字段太短 |
+| POST | `/user_login` | **表单** `username=..&password=..` | 无 | `{"access_token":"...","token_type":"bearer"}` / 401 用户或密码错误 |
+| GET | `/passage` | — | ✅ 要 token | 对象列表（含 `author`） |
+| POST | `/passage_add` | **JSON** `{"title","content"}` | ✅ 要 token | `{"message":"发布成功"}` / 422 |
+
+> ⚠️ **注册收 JSON、登录收表单**，这是 `OAuth2PasswordRequestForm` 的要求，前端两页写法不同就是这个原因。
+
+**两个接口的细节**
 
 ```
 GET  /passage
@@ -126,7 +150,8 @@ GET  /passage
 POST /passage_add
      请求体：{"title": "...", "content": "..."}
      date 由服务端生成（time.strftime）
-     INSERT INTO passage (title, content, date) VALUES (?,?,?)
+     author = current_user（来自 token）
+     INSERT INTO passage (title, content, date, author) VALUES (?,?,?,?)
      返回 {"message":"发布成功"}
      校验失败 → 422，响应体含 detail[0].msg
 ```
@@ -153,17 +178,21 @@ add_passage()      →  读两个输入框的 .value
 - `requirements.txt`：`fastapi==0.141.1` / `uvicorn==0.52.4`
   - **fastapi** = 用来写应用的框架（路由、数据校验）
   - **uvicorn** = 真正把服务跑起来、守端口收 HTTP 的那个进程
-  - 实际安装版本（2026-10-18 实测）：`fastapi 0.141.1` / `uvicorn 0.52.4` / **`pydantic 2.13.5`**
-    （pydantic 由 fastapi 间接带入，**未显式写进 requirements** —— 一般够用，想严谨可以补上）
-- `passage` 表：`id INTEGER PRIMARY KEY AUTOINCREMENT` / `title TEXT` / `content TEXT` / `date TEXT`
-- 当前 7 条数据；`.db` 不进仓库，克隆后靠 `CREATE TABLE IF NOT EXISTS` 自建空表
+  - 实际安装版本（2026-10-30 实测）：`fastapi 0.141.1` / `uvicorn 0.52.4` / **`pydantic 2.13.5`** / `bcrypt` / `pyjwt` / `pytest 9.1.1` / `httpx 0.28.1`
+  - ⚠️ **`requirements.txt` 只写了前两个**：`bcrypt` / `pyjwt` 是登录必需的，换机器 `pip install -r` 会装不全 → 登录直接 `ImportError`。这是当前最该还的技术债之一
+- `passage` 表：`id INTEGER PRIMARY KEY AUTOINCREMENT` / `title TEXT` / `content TEXT` / `date TEXT` / `author TEXT`
+- `user` 表：`id INTEGER PRIMARY KEY AUTOINCREMENT` / `username TEXT` / `hashpassword TEXT`
+  - ⚠️ `username` **没有 UNIQUE 约束**，重复判断靠代码里的 `SELECT ... WHERE username=?`；并发下会有竞态
+- `.db` 不进仓库，克隆后靠 `CREATE TABLE IF NOT EXISTS` 自建空表；**但加字段不会自动生效**，要靠启动时的 `PRAGMA table_info` + `ALTER TABLE`
 
 ### 3.5 一句话职责（原作者口述，已校对）
 
 | 文件 | 职责 |
 |---|---|
-| `main.py` | 服务器收到请求后做什么：建库建表 → 定数据形状 → 收请求 → 查/写 → 回结果 |
-| `frontend/index.html` | 浏览器里长什么样（输入框、按钮、列表）+ 做什么（读列表、发文章） |
+| `main.py` | 服务器收到请求后做什么：建库建表 → 定数据形状 → 验身份 → 收请求 → 查/写 → 回结果 |
+| `frontend/index.html` | 首页：门禁（没 token 跳登录）+ 列表 + 发帖 |
+| `frontend/login.html` / `register.html` | 登录 / 注册表单，成功后把 token 存进 `localStorage` |
+| `conftest.py` | 测试的"假环境"：内存库 + 假浏览器 + 现成账号 + 现成 token |
 | `requirements.txt` | 换台机器，靠它把环境装起来 |
 | `mini-blog.db` | 数据存在哪 |
 
@@ -258,6 +287,61 @@ add_passage()      →  读两个输入框的 .value
 - **验证**：`git branch` 列出来只有 `master`
 - **修**：`git branch -M main`（**必须在第一次 commit 之后**，否则报 `no commit on branch`）
 
+### #10 注册接口说"成功"，库里 0 条
+
+- **现象**：`/user_register` 返回 `{"message":"注册成功"}`，但 `SELECT * FROM user` 是空的
+- **真根因**：`INSERT` 之后**漏了 `db.commit()`**。SQLite 的连接默认不开自动提交，`execute` 只是把语句放进事务，不 commit 就等于没写
+- **验证**：接口返回 200 **不能当证据**，判据只能是库里 `COUNT(*)`
+- **教训**：**"接口说成功" ≠ "数据进去了"** —— 静默家族第 N 张脸
+
+### #11 注册能过、登录 422，因为一个收 JSON 一个收表单
+
+- **现象**：注册用 `json={"username":...}` 能过；登录同样写法返回 422
+- **真根因**：登录用的是 `OAuth2PasswordRequestForm`，它要的是 **`application/x-www-form-urlencoded` 表单**，不是 JSON
+- **修**：登录用 `data={"username":..., "password":...}` + `headers={"content-type": "application/x-www-form-urlencoded"}`
+- **教训**：**同一个项目里两种请求体格式可以共存** —— 写测试前先看后端要什么，别假设
+
+### #12 `err.detail[0].msg` 在 401 上炸成 `undefined`
+
+- **现象**：密码错时弹窗显示 `undefined`
+- **真根因**：**`detail` 的类型随状态码变**：422 的 `detail` 是**数组**（`[{"msg":...}]`），404 / 401 的 `detail` 是**字符串**（`"用户或密码错误"`）。`"字符串"[0].msg` → `undefined`
+- **修**：分型处理
+  ```javascript
+  const msg = Array.isArray(err.detail) ? err.detail[0].msg : err.detail;
+  ```
+- **教训**：**同一个字段，在不同分支里是不同类型** —— 报错信息本身也要先判断形状
+
+### #13 `secret` 只有 13 字节
+
+- **现象**：`InsecureKeyLengthWarning: The HMAC key is 13 bytes long, which is below the minimum recommended length of 32 bytes for SHA256`
+- **真根因**：`secret="my_now_secret"`（`main.py:20`）随手起的，长度不够
+- **修**：部署周改成环境变量 + 32 字节以上随机串
+- **教训**：**警告不是装饰** —— 它说的是"这个密钥可被暴力猜出"，而密钥泄露 = 任何人能伪造 token
+
+### #14 `ModuleNotFoundError: No module named 'main'`
+
+- **现象**：`pytest` 跑测试，`conftest.py` 第一行就炸
+- **真根因**：直接敲 `pytest` 时，`sys.path` 里**没有项目根**，只有参数所在目录
+- **修**：`python -m pytest test -v` —— `-m` 会让 Python 把**当前目录**加进 `sys.path`
+- **教训**：**"命令能不能跑"取决于它怎么被启动的**，和代码无关。详见 §9.2
+
+### #15 `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread`
+
+- **现象**：内存库在 `conftest.py` 建好，测试一跑就报跨线程
+- **真根因**：`TestClient` 在**另一个线程**里执行请求，SQLite 连接默认绑创建它的线程
+- **修**：`sqlite3.connect(":memory:", check_same_thread=False)`
+- **教训**：**"同一个进程"不等于"同一个线程"** —— 单线程写的代码进测试框架就会暴露
+
+### #16 测试全绿，但一个用例都没跑
+
+- **现象**：`pytest` 输出 `passed`，改坏代码也不红
+- **真根因（三种，都踩过）**：
+  1. 断言写成 `r.status_code == 401`，**没写 `assert`** → 表达式算完就扔
+  2. 函数名不叫 `test_*` → **根本不被收集**
+  3. `headers={"Authoriazation": ...}` **拼错** → 服务端收不到头 → 报 `Not authenticated`，把"头没发出去"伪装成"token 无效"
+- **验证**：**故意改坏一处，看它红不红**。不红就是假绿
+- **教训**：**「全绿」有四种可能** —— 真对 / 没执行 / 断言写错 / 断言没写（§8.2 判据 4 的测试版）
+
 ### 4.10 排查方法论（比具体修法更值钱）
 
 | 原则 | 具体做法 |
@@ -272,24 +356,26 @@ add_passage()      →  读两个输入框的 .value
 
 ## 5. 待办与后续计划
 
-### 5.1 立刻（半天内）
+### 5.1 已完成（2026-10-18 ~ 10-30）
 
-| 事项 | 为什么 |
+| 事项 | 状态 |
 |---|---|
-| **写 `README.md`** | 面试官打开仓库第一眼。要写：项目是什么、怎么跑、技术栈、遇到的问题 |
-| **`git add README.md && git commit && git push`** | 顺手把 Git 流程再走一遍 |
+| 写 `README.md` 并 push | ✅ commit `e8f0018` |
+| 两数之和哈希版 | ✅ 0ms / 100%，两处卡点（`seen` 位置、查 `target - nums[m]`）都修好 |
+| 加登录（注册 + 登录 + JWT 鉴权） | ✅ `d9c7415` / `a5cdb09` |
+| `author` 字段 | ✅ 启动时 `ALTER TABLE` 迁移，旧数据 NULL，前端兜底“佚名” |
+| 补测试（pytest） | ✅ `19d060c` / `b63f125` / `703edf9` / `9bc627e`，**10 个用例全绿**，见 §9 |
+| `host` 改 `0.0.0.0` | ✅ `b75de79` |
 
-### 5.2 一周内
+### 5.2 下周（部署周 Day 21-25）
 
 | 事项 | 说明 |
 |---|---|
-| **加登录** | 独立重建的最后一块。参考旧博客的做法（`URLSearchParams` + `localStorage`），但要**自己写** |
-| **算法：把两数之和的哈希版写完** | 当前卡在"字典位置 + 查错对象"两个问题上（见下） |
-| **每天 30 分钟算法** | 唯一"不过就出局"的门槛（笔试机考），**目前执行率最低的一项** |
-
-> **两数之和的卡点（2026-10-17 收工时状态）**：已写出用户字典的思路，但
-> ① `seen = {}` 写在循环里（每轮清空）② 查的是 `nums[m]` 而不是 `target - nums[m]`。
-> 三个官方用例全返回 `None`。修法就这两处。
+| **技术债清理** | `requirements.txt` 补 `bcrypt` / `pyjwt`；`secret` 改环境变量；注册重复用户名 404 → 409 |
+| **服务器** | 复用旧机或买新的（学生机）；能 SSH 上去为准 |
+| **装环境传代码** | Python + 依赖 + `git clone`；`.db` 不传，靠启动自建 |
+| **systemd 守护** | 服务挂了自动拉起；开机自启 |
+| **三个待定** | ①服务器复用还是新买 ②secret 环境变量名（建议 `MINI_BLOG_SECRET`）③端口是否仍用 8000 |
 
 ### 5.3 更远
 
@@ -299,7 +385,10 @@ add_passage()      →  读两个输入框的 .value
 | **编辑 / 删除** | 补全 CRUD |
 | **搜索** | 顺带练 `LIKE` / 索引 |
 | **CSS** | 现在完全没有样式 |
-| **补测试**（pytest） | 现在 0 个测试 |
+| **榨干 SQLite** | 索引 / `EXPLAIN QUERY PLAN` / 窗口函数 / FTS5，之后再谈 PostgreSQL（寒假） |
+| **补缺的测试** | `/passage` 读接口、`author` 落库、bcrypt 72 字节上限 |
+| **AI 摘要功能** | 给每篇文章生成摘要，2 天量级 |
+| **旧坑复习机制** | 每天重写一道前天做过的题 |
 | **把旧博客也上 GitHub** | ⚠️ 先做 §6.2 的三件事 |
 
 ---
@@ -310,13 +399,16 @@ add_passage()      →  读两个输入框的 .value
 
 | 债 | 危害 | 怎么还 |
 |---|---|---|
-| **`main.py:46` 写死 `host="127.0.0.1"`** | 部署到服务器后**外部访问不到**（只监听本机） | 部署时改 `0.0.0.0` |
-| **完全没有认证** | **任何人**能访问 `/passage_add` 发帖；也没有"作者"概念 | 加登录 |
+| **`secret="my_now_secret"`（`main.py:20`）硬编码，13 字节** | 密钥进 Git = 任何人都能伪造 token；且长度不足 SHA256 建议的 32 字节（`InsecureKeyLengthWarning`） | 部署周改成环境变量 `os.environ["MINI_BLOG_SECRET"]`，值换成 32 字节以上随机串 |
+| ~~`host="127.0.0.1"`~~ | ~~部署后外部访问不到~~ | ✅ 已改 `0.0.0.0`（`main.py:103`） |
+| ~~完全没有认证~~ | ~~任何人能发帖~~ | ✅ 已加 JWT 鉴权，`/passage` 与 `/passage_add` 都要 token |
 | **`requirements.txt` 是 CR-only 行尾** | pip **能正常读**（已验证），但 GitHub 上显示异常、部分工具会警告 | VSCode 右下角改成 CRLF/LF 存一次 |
-| **零测试** | 改一处不知道崩没崩 | 补 pytest（旧博客有 20 个用例可参考写法） |
+| ~~零测试~~ | ~~改一处不知道崩没崩~~ | ✅ 已还 2026-10-30：10 个用例，见 §9 |
 | **`add_passage()` 里变量名还是 `list1` / `list2`** | 与 `id="title"` / `id="content"` 不一致，读代码费劲 | 改名 |
 | **日期格式 `2026-10-14 17-04-21`** | 用 `-` 当时间分隔符，不是标准格式，排序/解析都别扭 | 改 `%H:%M:%S` |
-| **无 `author` 字段** | 分不清谁发的（等加登录一起解决） | — |
+| ~~无 `author` 字段~~ | ~~分不清谁发的~~ | ✅ 已加 `author` 列（启动时 `PRAGMA table_info` 判断后 `ALTER TABLE`），旧数据为 NULL，前端 `??= "佚名"` 兜底 |
+| **`requirements.txt` 未写 `bcrypt` / `pyjwt`** | 换机器 `pip install -r` 装不全，登录直接 ImportError | 补上两行，并补 `pytest` / `httpx` 到 `requirements-dev.txt` |
+| **注册接口重复用户名返回 404** | 语义应为 409 Conflict，404 让调用方误以为“路径错了” | 改 `status_code=409`，前端同步 |
 
 ### 6.2 安全（**动 GitHub 之前必看**）
 
@@ -358,25 +450,30 @@ add_passage()      →  读两个输入框的 .value
 
 ### 7.1 把项目跑起来
 
-```bash
+```powershell
 cd D:\mini-blog
 D:\code\python\python.exe -m uvicorn main:app --reload
 ```
 
-浏览器开 `http://127.0.0.1:8000/` —— 应该看到 7 条文章 + 两个输入框 + 提交按钮。
+浏览器开 `http://127.0.0.1:8000/` —— **没 token 会自动跳到 `/login.html`**，先注册再登录，之后能看到文章列表 + 发帖框。
 
-### 7.2 确认它真的在工作（三条命令）
+> ⚠️ 现在 `host="0.0.0.0"`，本地和局域网都能访问；本机仍用 `127.0.0.1:8000`。
 
-```bash
-# ① 接口返回对象列表吗（最外层应该是 [ 然后每个元素是 { ）
-curl -s http://127.0.0.1:8000/passage
+### 7.2 确认它真的在工作（四条命令）
 
-# ② 库里几条（该和页面上的条数一致）
+```powershell
+# ① 跑测试（最快确认后端逻辑没崩）
+D:\code\python\python.exe -m pytest test -v
+#    预期：10 passed
+
+# ② 接口通不通（要带 token，否则 401 是正常的）
+curl.exe -s http://127.0.0.1:8000/passage
+
+# ③ 库里几条
 D:\code\python\python.exe -c "import sqlite3;c=sqlite3.connect('mini-blog.db');print(c.execute('SELECT COUNT(*) FROM passage').fetchone()[0])"
 
-# ③ 代码改了但没生效？先看端口和文件时间
-netstat -ano | grep ':8000'
-ls -l --time-style=+"%m-%d %H:%M" main.py frontend/index.html
+# ④ 端口谁在占（服务起不来的第一诊断）
+netstat -ano | Select-String ':8000'
 ```
 
 ### 7.3 改完怎么确认生效（**最容易出错的地方**）
@@ -385,7 +482,9 @@ ls -l --time-style=+"%m-%d %H:%M" main.py frontend/index.html
 |---|---|---|
 | `.py` | 重启服务（`--reload` 会自动） | 只看终端 banner —— **banner 只在 bind 那一刻打印** |
 | `.html` / `.js` | **在浏览器里重新加载页面**（建议 `Ctrl+Shift+R`） | **改了文件 ≠ 改了正在跑的那个页面** |
+| `conftest.py` / `test/*.py` | 立即生效，重跑 pytest 即可 | 测试文件改名后仍看旧报告 —— pytest 有缓存，加 `--cache-clear` |
 | `.gitignore` | 立即生效 | 用 `git status --short --ignored` 确认（`??` / `!!`） |
+| 数据库加字段 | **必须重启服务**（迁移在模块级，启动时跑一次） | 只 `--reload` 改了别的文件，以为迁移也跑了 |
 
 ### 7.4 Git 日常四步
 
@@ -444,6 +543,119 @@ await             → 真数据
 
 **判据**：**`await` 前面的代码保证已发生；`await` 后面的代码可能还没发生。**
 想"读库变了之后的列表"，就必须写在 `await` 之后。
+
+---
+
+## 9. pytest 测试体系（2026-10-26 ~ 10-30 建立）
+
+> 当前状态（2026-10-30 实测）：`test/` 下三个文件（`test_register.py` / `test_login.py` / `test_auth.py`）+ 根目录 `conftest.py`，**10 个用例全绿**，`1.57s`。
+> 命令：`D:\code\python\python.exe -m pytest test -v`
+
+### 9.1 文件怎么组织
+
+| 规则 | 内容 |
+|---|---|
+| 目录 | 测试放 `test/`，`conftest.py` 放**项目根**（不是 `test/` 里） |
+| 文件名 | 必须 `test_*.py`，否则 pytest 不收集 |
+| 函数名 | 必须 `test_*`，**漏了就静默不执行** —— 报了“全绿”，其实一个都没跑 |
+| 为什么不能随便放 | 测试文件要能 `import main`。`pytest` 直接跑时只把**参数所在目录**加进 `sys.path`，`test/` 下就 `ModuleNotFoundError: No module named 'main'` |
+
+### 9.2 跑测试的命令
+
+```powershell
+# 全量（日常用这个）
+D:\code\python\python.exe -m pytest test -v
+
+# 只看某个文件 / 某类用例
+D:\code\python\python.exe -m pytest test/test_auth.py -v
+D:\code\python\python.exe -m pytest test -k "register" -v
+
+# 想看 print 输出时加 -s
+D:\code\python\python.exe -m pytest test -v -s
+```
+
+**为什么必须 `python -m pytest` 而不能直接 `pytest`**：
+
+- `python -m xxx` 会让 Python 把**当前工作目录**放进 `sys.path[0]`
+- 直接敲 `pytest` 时，`sys.path` 里没有项目根 → `conftest.py` 里的 `from main import app, get_db` 直接炸
+- 这就是那次 `ModuleNotFoundError: No module named 'main'` 的根因，不是文件放错了
+
+**排查口诀**：`import` 报错 → 先看是不是用了 `pytest` 而不是 `python -m pytest`。
+
+### 9.3 `conftest.py` 里有什么
+
+四个 fixture + 一段全局替换，`conftest.py` 共 48 行：
+
+| fixture | 干什么 | 依赖谁 |
+|---|---|---|
+| `clear`（`autouse=True`） | 每个用例前后清空两张表 | 无（自动跑） |
+| `client` | 返回 `TestClient(app)`，一个“假浏览器” | 无 |
+| `user` | 用随机用户名注册一个账号，返回 `(name, password)` | `client` |
+| `token` | 用 `user` 的账密登录，返回 `access_token` 字符串 | `client`, `user` |
+
+**fixture 链怎么串**：`token` 依赖 `user`，`user` 依赖 `client`。测试函数只要写 `def test_x(client, token)`，pytest 会**自动按依赖顺序**先把 `client` 准备好，再 `user`，再 `token` —— 不需要手写调用顺序，这是 fixture 最核心的机制。
+
+**为什么用户名要随机**：`f"u_{uuid.uuid4().hex[:8]}"`。因为 `user` 表在同一个进程里共享，固定名字会在第二个用例撞“用户名已存在”。
+
+### 9.4 测试隔离的两层（**别混成一句**）
+
+```
+第 1 层：内存库  → 隔离「测试」和「生产数据」
+第 2 层：clear   → 隔离「测试」和「测试」
+```
+
+**第 1 层 —— 不污染真实库**
+
+```python
+conn = sqlite3.connect(":memory:", check_same_thread=False)
+def override_get_db():
+    yield conn
+app.dependency_overrides[get_db] = override_get_db
+```
+
+- `:memory:` = 库只活在内存里，进程结束就消失，`mini-blog.db` 一个字节都不动
+- **生命周期跟着“连接”走**：这条 `conn` 在模块级创建，所以是**整个测试进程共用一份**；一旦 `close()` 或进程退出，库和数据全没
+- 常见坑：建完表把连接 `close()` 了，再新建一条连接 → `no such table`（**新连接是另一张空库**）
+- `check_same_thread=False`：`TestClient` 在**另一个线程**里跑请求，SQLite 默认禁止跨线程用同一连接，不加就报
+  `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread.`
+- `app.dependency_overrides[get_db] = override_get_db`：FastAPI 的依赖注入替换点。`main.py` 里每个路由写的是 `Depends(get_db)`，这里把它换成“给内存库”，**业务代码一行都不用改**
+
+**第 2 层 —— 用例之间不串数据**
+
+```python
+@pytest.fixture(autouse=True)
+def clear():
+    conn.execute("DELETE FROM user")
+    conn.execute("DELETE FROM passage")
+    conn.commit()
+    yield
+```
+
+- 因为内存库是**进程级共享**，上一个用例注册的用户会留到下一个用例 → 必须清
+- `autouse=True`：不用在测试函数参数里写 `clear`，每个用例自动跑
+
+### 9.5 「测试说谎」清单（最值钱的一节）
+
+**核心判据：「测试全绿」不等于「代码对」。绿有四种可能 —— 真对 / 没执行 / 断言写错 / 断言没写。**
+
+| 症状 | 真根因 | 判据 |
+|---|---|---|
+| 永久绿，改坏代码也不红 | `r.status_code == 401` 写了比较但**没写 `assert`** | 故意改坏一处，看它红不红 |
+| 某个用例从不出现 | 函数名不以 `test_` 开头，或文件名不对 → **根本没被收集** | 数一下 `-v` 输出的用例数，和文件里写的一致吗 |
+| 报 `Not authenticated`，以为是 token 问题 | `headers={"Authoriazation": ...}` **拼错** → 服务端收不到头 → 走了“无 token”分支 | 报错信息和预期不符时，先检查**头名**，别急着怀疑 token |
+| 连接失败 / 404 | URL 少开头的 `/` | 打印实际请求 URL |
+| 测试名和内容对不上 | `test_register_duplicate` 里测的是短密码 | 一个用例只证明一件事，名字必须说出它证明什么 |
+| 该红的地方不红 | 断言太弱（只断 `status_code`，不断 `detail` 文案） | 一个用例至少断两样：状态码 + 关键字段 |
+
+### 9.6 现有 10 个用例覆盖了什么
+
+| 文件 | 用例 | 证明什么 |
+|---|---|---|
+| `test_register.py` | 4 个 | 注册成功 / 用户名重复 / 密码太短 / 用户名太短 |
+| `test_login.py` | 3 个 | 登录成功 / 密码错误 / 用户不存在（后两者都返 401，防用户名枚举） |
+| `test_auth.py` | 3 个 | 无 token → `Not authenticated` / 假 token → `token无效或已过期` / 真 token → 200 发布成功 |
+
+**还缺的**：`/passage` 读接口的用例、`author` 字段落库的用例、bcrypt 72 字节上限的用例。
 
 ---
 
