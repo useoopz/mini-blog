@@ -6,6 +6,7 @@ from pydantic import BaseModel,Field
 import bcrypt
 import jwt
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
+import os
 
 class AddPassage(BaseModel):
     title: str=Field(min_length=1)
@@ -17,7 +18,7 @@ class UserLogin(BaseModel):
     username: str
     password: str
 app=FastAPI()
-secret="my_now_secret"
+secret=os.environ["MINI_BLOG_SECRET"]
 oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/user_login")
 conn=sqlite3.connect("mini-blog.db")
 cursor=conn.cursor()
@@ -76,7 +77,7 @@ def user_register(user:UserRegister,db=Depends(get_db)):#LOOKUPhttps://blog.csdn
     cursor.execute("SELECT username FROM user WHERE username=?",(user.username,))
     row=cursor.fetchone()
     if row is not None:
-        raise HTTPException(404,"用户名已存在")
+        raise HTTPException(409,"用户名已存在")
     else:
         hashed=hash_passaword(user.password).decode()
         cursor.execute("INSERT INTO user (username,hashpassword) VALUES(?,?)",(user.username,hashed))

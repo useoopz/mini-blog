@@ -1,3 +1,5 @@
+﻿import os
+os.environ.setdefault("MINI_BLOG_SECRET", "5f3a9c1e7b2d4a6f8c0e1d3b5a7f9c2e4d6b8a0f1c3e5d7a9b2c4e6f8a0d1b3c")
 import sqlite3
 import pytest
 from fastapi.testclient import TestClient

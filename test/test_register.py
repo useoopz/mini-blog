@@ -1,7 +1,3 @@
-from fastapi.testclient import TestClient
-from main import app
-
-
 def test_register(client):
     name="adm1"
     password="adadm1"
@@ -21,7 +17,7 @@ def test_register_duplicate(client):
     response1=client.post("/user_register",
                             headers={"content-type": "application/json"},
                             json={"username":name,"password":password1},)
-    assert response1.status_code==404
+    assert response1.status_code==409
     assert response1.json()["detail"]=="用户名已存在"
 def test_register_short_password(client):
     name="an"

@@ -1,6 +1,6 @@
 # mini-blog 项目交接文档
 
-> **生成日期**：2026-10-18（最后更新 2026-10-30）
+> **生成日期**：2026-10-18（最后更新 2026-10-31）
 > **资料来源**：`.workbuddy/memory/` 下的 `MEMORY.md` 与 `2026-10-12 ~ 2026-10-30` 每日日志
 > **读者**：接手这个项目的人（或隔一段时间回来的作者本人）
 > **阅读建议**：赶时间只看 §0；接手第一天照 §7 做；测试相关直接看 §9
@@ -14,9 +14,9 @@
 | **是什么** | 一个**从零手写**的迷你博客：注册 / 登录 / 发帖 / 看文章。FastAPI + SQLite + 原生 JS，无框架 |
 | **在哪** | `D:\mini-blog\`（本地）｜`https://github.com/useoopz/mini-blog`（公开） |
 | **能跑什么** | 未登录跳登录页；注册 → 登录拿 token → 首页显示全部文章（带作者名）；填标题+正文点提交，写库并自动刷新；空标题被后端拒绝并弹提示 |
-| **代码量（2026-10-30 实测）** | `main.py` 102 行 / `frontend/` 三个页面 64+44+39 行 / `conftest.py` 48 行 / `test/` 三个文件 87 行 |
-| **当前状态** | 能跑、有 JWT 鉴权、**10 个测试全绿**、有 GitHub。**没有分页、没有 CSS、没有编辑删除** |
-| **下一步** | 写 README → 加登录 → 补分页 |
+| **代码量（2026-10-31 实测）** | `main.py` 104 行 / `frontend/` 三个页面 68+47+42 行 / `conftest.py` 50 行 / `test/` 五个文件 101 行 |
+| **当前状态** | 能跑、有 JWT 鉴权、**12 个测试全绿**、secret 已进环境变量、`requirements.txt` 补全、注册重名返回 409。**没有分页、没有 CSS、没有编辑删除** |
+| **下一步** | 部署周 Day 21-25：买/复用服务器 → 装环境传代码 → systemd 守护 |
 
 **一分钟跑起来**：
 ```bash
@@ -76,6 +76,7 @@ D:\code\python\python.exe -m uvicorn main:app --reload
 | Day 11-15 | 10-22 ~ 10-26 | 前端三页：`index.html` 门禁、`login.html`、`register.html`；401 分支与 `err.detail` 分型显示；算法刷到 20 题 |
 | Day 16-18 | 10-27 ~ 10-29 | **pytest 从零**：`ModuleNotFoundError` 排查、内存库隔离、`dependency_overrides`、三个 fixture |
 | Day 19-20 | 10-30 | `test_auth.py` 三用例补齐 → **10 个测试全绿**；496 单调栈；本文档补 §9 |
+| Day 21 | 10-31 | LeetCode 206 手写通过；**技术债清理日**：补 `GET /passage` + author 落库两个测试（→12 个）、secret 进环境变量、`requirements.txt` 补 bcrypt+PyJWT 修行尾、注册重名 404→409；做了一次变异测试 |
 
 ### 2.2 关键决策（每条都有代价，不是"最佳实践"）
 
@@ -99,19 +100,23 @@ D:\code\python\python.exe -m uvicorn main:app --reload
 
 ```
 D:\mini-blog\
-├── main.py               102 行 · 整个后端（模型 / 建表 / 鉴权 / 6 个路由 / 静态托管）
-├── requirements.txt      2 个包（fastapi / uvicorn）⚠️ 漏了 bcrypt / pyjwt
-├── conftest.py           48 行 · 测试夹具（内存库 + 4 个 fixture）
+├── main.py               104 行 · 整个后端（模型 / 建表 / 鉴权 / 6 个路由 / 静态托管）
+├── requirements.txt      4 个包（fastapi / uvicorn / bcrypt / PyJWT）LF 行尾
+├── conftest.py           50 行 · 测试夹具（内存库 + 4 个 fixture + 测试用 secret）
 ├── test/
-│   ├── test_register.py  36 行 · 注册四用例
-│   ├── test_login.py     32 行 · 登录三用例
-│   └── test_auth.py      19 行 · 鉴权三用例
+│   ├── test_register.py  34 行 · 注册四用例（含重名 409）
+│   ├── test_login.py     30 行 · 登录三用例
+│   ├── test_auth.py      19 行 · 鉴权三用例
+│   ├── test_passage.py    4 行 · 读接口形状
+│   └── test_author_name.py 14 行 · author 真的落库了
 ├── .gitignore            __pycache__/  *.db  post.json
 ├── mini-blog.db          SQLite 数据库（不进仓库，两张表 passage / user）
+├── HANDOVER.md          本文档
+├── README.md            面向陌生人的项目说明
 ├── frontend/
-│   ├── index.html        64 行 · 首页（门禁 + 列表 + 发帖）
-│   ├── login.html        44 行 · 登录页
-│   └── register.html     39 行 · 注册页
+│   ├── index.html        68 行 · 首页（门禁 + 列表 + 发帖）
+│   ├── login.html        47 行 · 登录页
+│   └── register.html     42 行 · 注册页
 └── __pycache__/          Python 缓存（不进仓库）
 ```
 
@@ -119,20 +124,20 @@ D:\mini-blog\
 
 | 区段 | 行 | 干什么 | 关键点 |
 |---|---|---|---|
-| **① 配置与模型** | 1-25 | `secret`、`oauth2_scheme`、`AddPassage` / `UserRegister` 两个模型 | `secret` 硬编码 13 字节（技术债）；两个模型的字段都带 `Field(min_length=...)` |
-| **② 一次性初始化** | 26-45 | 连库 → 建 `passage` / `user` 两张表 → **`PRAGMA table_info` 检查 `author` 列** → 缺则 `ALTER TABLE` 补 | 这段在**模块级**，启动只跑一次。`CREATE TABLE IF NOT EXISTS` **不会改旧表**，所以加字段必须走 `ALTER` |
-| **③ 鉴权依赖** | 46-52 | `get_current_user()`：`jwt.decode` → 失败抛 401 | `except jwt.InvalidTokenError` → `"token无效或已过期"` |
-| **④ 连接工厂** | — | `get_db()`：每请求新建连接，`yield` → `close` | `yield conn` 而不是 `yield conn.close()`（§4 坑一） |
-| **⑤ 六个路由** | 53-100 | 注册 / 登录 / 读文章 / 发文章 / 静态页 | **全部在 `mount("/")` 之前** |
+| **① 配置与模型** | 1-22 | `secret`、`oauth2_scheme`、`AddPassage` / `UserRegister` / `UserLogin` 三个模型 | `secret=os.environ["MINI_BLOG_SECRET"]`（21 行，**没设环境变量就启动即崩**，这是故意的）；`UserLogin`（17-19 行）**目前没被任何路由用到**，是残留 |
+| **② 一次性初始化** | 23-44 | 连库 → 建 `passage` / `user` 两张表 → **`PRAGMA table_info` 检查 `author` 列** → 缺则 `ALTER TABLE` 补 | 这段在**模块级**，启动只跑一次。`CREATE TABLE IF NOT EXISTS` **不会改旧表**，所以加字段必须走 `ALTER` |
+| **③ 鉴权依赖** | 45-50 | `get_current_user()`：`jwt.decode` → 失败抛 401 | `except jwt.InvalidTokenError` → `"token无效或已过期"` |
+| **④ 连接工厂与哈希** | 51-58 | `hash_passaword()`（bcrypt 加盐）、`get_db()`（每请求新建连接，`yield` → `close`） | `yield conn` 而不是 `yield conn.close()`（§4 坑一）。⚠️ 函数名 `hash_passaword` 拼错，全项目沿用，改名前先全局搜 |
+| **⑤ 六个路由** | 59-99 | 读文章 / 发文章 / 注册 / 登录 | **全部在 `mount("/")` 之前** |
 | **⑥ 静态托管** | 101 | `mount("/", StaticFiles(directory="frontend", html=True))` | **必须在所有路由之后** |
-| **⑦ 启动块** | 102-103 | `uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)` | 已改 `0.0.0.0` ✅ |
+| **⑦ 启动块** | 102-104 | `uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)` | 已改 `0.0.0.0` ✅ |
 
 **路由清单**
 
 | 方法 | 路径 | 请求体格式 | 鉴权 | 返回 |
 |---|---|---|---|---|
-| POST | `/user_register` | **JSON** `{"username","password"}` | 无 | `{"message":"注册成功"}` / 404 用户名已存在 / 422 字段太短 |
-| POST | `/user_login` | **表单** `username=..&password=..` | 无 | `{"access_token":"...","token_type":"bearer"}` / 401 用户或密码错误 |
+| POST | `/user_register` | **JSON** `{"username","password"}` | 无 | `{"message":"注册成功"}` / **409** 用户名已存在 / 422 字段太短 |
+| POST | `/user_login` | **表单** `username=..&password=..` | 无 | `{"message":"登陆成功","access_token":"...","token_type":"bearer"}` / 401 用户或密码错误 |
 | GET | `/passage` | — | ✅ 要 token | 对象列表（含 `author`） |
 | POST | `/passage_add` | **JSON** `{"title","content"}` | ✅ 要 token | `{"message":"发布成功"}` / 422 |
 
@@ -178,8 +183,9 @@ add_passage()      →  读两个输入框的 .value
 - `requirements.txt`：`fastapi==0.141.1` / `uvicorn==0.52.4`
   - **fastapi** = 用来写应用的框架（路由、数据校验）
   - **uvicorn** = 真正把服务跑起来、守端口收 HTTP 的那个进程
-  - 实际安装版本（2026-10-30 实测）：`fastapi 0.141.1` / `uvicorn 0.52.4` / **`pydantic 2.13.5`** / `bcrypt` / `pyjwt` / `pytest 9.1.1` / `httpx 0.28.1`
-  - ⚠️ **`requirements.txt` 只写了前两个**：`bcrypt` / `pyjwt` 是登录必需的，换机器 `pip install -r` 会装不全 → 登录直接 `ImportError`。这是当前最该还的技术债之一
+  - 实际安装版本（2026-10-31 实测）：`fastapi 0.141.1` / `uvicorn 0.52.4` / **`pydantic 2.13.5`** / `bcrypt 4.0.1` / `PyJWT 2.13.0` / `pytest 9.1.1` / `httpx 0.28.1`
+  - ✅ 2026-10-31：`requirements.txt` 已补齐四个运行必需包（`fastapi` / `uvicorn` / `bcrypt` / `PyJWT`），行尾从 CR-only 改成 LF。`pip install -r requirements.txt --dry-run` 四行全 `Requirement already satisfied`
+  - ⚠️ **`pytest` / `httpx` 还没进任何 requirements 文件** —— 换机器能跑服务，但跑不了测试
 - `passage` 表：`id INTEGER PRIMARY KEY AUTOINCREMENT` / `title TEXT` / `content TEXT` / `date TEXT` / `author TEXT`
 - `user` 表：`id INTEGER PRIMARY KEY AUTOINCREMENT` / `username TEXT` / `hashpassword TEXT`
   - ⚠️ `username` **没有 UNIQUE 约束**，重复判断靠代码里的 `SELECT ... WHERE username=?`；并发下会有竞态
@@ -342,6 +348,21 @@ add_passage()      →  读两个输入框的 .value
 - **验证**：**故意改坏一处，看它红不红**。不红就是假绿
 - **教训**：**「全绿」有四种可能** —— 真对 / 没执行 / 断言写错 / 断言没写（§8.2 判据 4 的测试版）
 
+### #17 `setdefault` 写在 `import main` 之后，照样 `KeyError`
+
+- **现象**：`conftest.py` 里明明写了 `os.environ.setdefault("MINI_BLOG_SECRET", ...)`，`pytest` 还是崩在 `main.py:21` 的 `KeyError: 'MINI_BLOG_SECRET'`
+- **根因**：`import` 是**立即执行**。`from main import app, get_db` 在 `conftest.py:4`，而 `setdefault` 在 `conftest.py:7` —— 走到第 4 行时 `main.py` 全文已经跑完，第 21 行当场抛异常，第 7 行永远没机会执行
+- **修法**：把 `import os` 和 `setdefault` 提到**所有 `import main` 之前**（现在是 `conftest.py:1-2`）
+- **教训**：**给模块铺环境变量的代码，必须写在 import 那个模块之前。** 模块顶层代码在被 import 的那一刻就执行，不是等调用函数时
+
+### #18 设置环境变量兜底值，等于没改
+
+- **现象**：把 `secret="my_now_secret"` 改成 `secret=os.environ.get("MINI_BLOG_SECRET", "5f3a9c1e...")`，测试全绿，grep 也搜不到旧密钥 —— 看起来改完了
+- **根因**：`.get(键, 默认值)` 在键缺失时**静默返回默认值**。那个 64 位字面量还在源码里，部署时忘设环境变量它照样生效 —— 危害和原来的硬编码**一模一样**，只是更隐蔽
+- **验证（可用同样的手法自查）**：把这个字面量当密钥去 `jwt.encode({"username":"admin_owner",...})`，能成功签出 token 并解回来 —— 说明任何读到源码的人都能伪造任意身份（`get_current_user` 只验签名不查库）
+- **修法**：`secret=os.environ["MINI_BLOG_SECRET"]` —— 没有就抛 `KeyError`，让配置缺失**在启动时暴露**，而不是在生产被人利用时暴露
+- **教训**：`os.environ.get(键, 字面量)` 是**假修复**。要么用 `os.environ[键]`（缺了就崩），要么在 `conftest.py` 里 `setdefault`（测试自供电）
+
 ### 4.10 排查方法论（比具体修法更值钱）
 
 | 原则 | 具体做法 |
@@ -356,7 +377,7 @@ add_passage()      →  读两个输入框的 .value
 
 ## 5. 待办与后续计划
 
-### 5.1 已完成（2026-10-18 ~ 10-30）
+### 5.1 已完成（2026-10-18 ~ 10-31）
 
 | 事项 | 状态 |
 |---|---|
@@ -364,18 +385,20 @@ add_passage()      →  读两个输入框的 .value
 | 两数之和哈希版 | ✅ 0ms / 100%，两处卡点（`seen` 位置、查 `target - nums[m]`）都修好 |
 | 加登录（注册 + 登录 + JWT 鉴权） | ✅ `d9c7415` / `a5cdb09` |
 | `author` 字段 | ✅ 启动时 `ALTER TABLE` 迁移，旧数据 NULL，前端兜底“佚名” |
-| 补测试（pytest） | ✅ `19d060c` / `b63f125` / `703edf9` / `9bc627e`，**10 个用例全绿**，见 §9 |
+| 补测试（pytest） | ✅ `19d060c` / `b63f125` / `703edf9` / `9bc627e`，**12 个用例全绿**，见 §9 |
 | `host` 改 `0.0.0.0` | ✅ `b75de79` |
+| **技术债清理（Day 21）** | ✅ secret 进环境变量 / `requirements.txt` 补 `bcrypt`+`PyJWT` 修行尾 / 注册重名 404→409 / 补 `GET /passage` 与 author 落库两个测试 |
+| LeetCode 206 反转链表 | ✅ 手写通过（迭代版，`prev`/`curr` 三行核心） |
 
-### 5.2 下周（部署周 Day 21-25）
+### 5.2 下周（部署周 Day 22-25）
 
 | 事项 | 说明 |
 |---|---|
-| **技术债清理** | `requirements.txt` 补 `bcrypt` / `pyjwt`；`secret` 改环境变量；注册重复用户名 404 → 409 |
+| ~~技术债清理~~ | ✅ 2026-10-31 已还清，见 §5.1 |
 | **服务器** | 复用旧机或买新的（学生机）；能 SSH 上去为准 |
 | **装环境传代码** | Python + 依赖 + `git clone`；`.db` 不传，靠启动自建 |
 | **systemd 守护** | 服务挂了自动拉起；开机自启 |
-| **三个待定** | ①服务器复用还是新买 ②secret 环境变量名（建议 `MINI_BLOG_SECRET`）③端口是否仍用 8000 |
+| **两个待定** | ①服务器复用还是新买 ②端口是否仍用 8000 |
 
 ### 5.3 更远
 
@@ -386,7 +409,7 @@ add_passage()      →  读两个输入框的 .value
 | **搜索** | 顺带练 `LIKE` / 索引 |
 | **CSS** | 现在完全没有样式 |
 | **榨干 SQLite** | 索引 / `EXPLAIN QUERY PLAN` / 窗口函数 / FTS5，之后再谈 PostgreSQL（寒假） |
-| **补缺的测试** | `/passage` 读接口、`author` 落库、bcrypt 72 字节上限 |
+| **补缺的测试** | 空库 `[]`、hashpassword≠明文、GET 无 token 401、bcrypt 72 字节上限、分页（见 §9.6） |
 | **AI 摘要功能** | 给每篇文章生成摘要，2 天量级 |
 | **旧坑复习机制** | 每天重写一道前天做过的题 |
 | **把旧博客也上 GitHub** | ⚠️ 先做 §6.2 的三件事 |
@@ -399,16 +422,19 @@ add_passage()      →  读两个输入框的 .value
 
 | 债 | 危害 | 怎么还 |
 |---|---|---|
-| **`secret="my_now_secret"`（`main.py:20`）硬编码，13 字节** | 密钥进 Git = 任何人都能伪造 token；且长度不足 SHA256 建议的 32 字节（`InsecureKeyLengthWarning`） | 部署周改成环境变量 `os.environ["MINI_BLOG_SECRET"]`，值换成 32 字节以上随机串 |
+| ~~`secret="my_now_secret"`（`main.py:20`）硬编码，13 字节~~ | ~~密钥进 Git = 任何人都能伪造 token~~ | ✅ 已还 2026-10-31：改 `os.environ["MINI_BLOG_SECRET"]`（`main.py:21`），测试靠 `conftest.py:2` 的 `setdefault` 供电。**生产必须自己设环境变量，不设就启动即崩** |
 | ~~`host="127.0.0.1"`~~ | ~~部署后外部访问不到~~ | ✅ 已改 `0.0.0.0`（`main.py:103`） |
 | ~~完全没有认证~~ | ~~任何人能发帖~~ | ✅ 已加 JWT 鉴权，`/passage` 与 `/passage_add` 都要 token |
-| **`requirements.txt` 是 CR-only 行尾** | pip **能正常读**（已验证），但 GitHub 上显示异常、部分工具会警告 | VSCode 右下角改成 CRLF/LF 存一次 |
-| ~~零测试~~ | ~~改一处不知道崩没崩~~ | ✅ 已还 2026-10-30：10 个用例，见 §9 |
+| ~~`requirements.txt` 是 CR-only 行尾~~ | ~~pip 能读但 GitHub 显示异常~~ | ✅ 已还 2026-10-31：重写为 LF 行尾，无空行空格 |
+| ~~零测试~~ | ~~改一处不知道崩没崩~~ | ✅ 已还 2026-10-30：10 个用例，见 §9。2026-10-31 补到 12 个 |
+| ~~`requirements.txt` 未写 `bcrypt` / `pyjwt`~~ | ~~换机器 `pip install -r` 装不全，登录直接 ImportError~~ | ✅ 已还 2026-10-31：补 `bcrypt==4.0.1` / `PyJWT==2.13.0`，`pip --dry-run` 四行全 satisfied |
+| ~~注册接口重复用户名返回 404~~ | ~~语义应为 409 Conflict~~ | ✅ 已还 2026-10-31：`main.py:80` 改 409，`test_register.py:20` 同步；`frontend/register.html` 不用改（只看 `response.ok`） |
+| **测试依赖没进 `requirements-dev.txt`** | 换机器能跑服务但跑不了 `pytest`（缺 `pytest` / `httpx`） | 新建 `requirements-dev.txt`，写 `pytest==9.1.1` / `httpx==0.28.1` |
 | **`add_passage()` 里变量名还是 `list1` / `list2`** | 与 `id="title"` / `id="content"` 不一致，读代码费劲 | 改名 |
 | **日期格式 `2026-10-14 17-04-21`** | 用 `-` 当时间分隔符，不是标准格式，排序/解析都别扭 | 改 `%H:%M:%S` |
 | ~~无 `author` 字段~~ | ~~分不清谁发的~~ | ✅ 已加 `author` 列（启动时 `PRAGMA table_info` 判断后 `ALTER TABLE`），旧数据为 NULL，前端 `??= "佚名"` 兜底 |
-| **`requirements.txt` 未写 `bcrypt` / `pyjwt`** | 换机器 `pip install -r` 装不全，登录直接 ImportError | 补上两行，并补 `pytest` / `httpx` 到 `requirements-dev.txt` |
-| **注册接口重复用户名返回 404** | 语义应为 409 Conflict，404 让调用方误以为“路径错了” | 改 `status_code=409`，前端同步 |
+| **`get_current_user` 只验签名，不查用户是否存在** | 知道密钥就能伪造任意用户名（含不存在的） | 解出 `username` 后查一次 `user` 表，不存在则 401 |
+| **测试用的密钥字面量仍在 `conftest.py:2`** | 这个值进了 Git。只影响测试环境（生产靠真环境变量），但读者容易误以为它是生产密钥 | 在 `conftest.py` 注释里写明「仅测试用」，或改成 `secrets.token_hex(32)` 每次随机生成 |
 
 ### 6.2 安全（**动 GitHub 之前必看**）
 
@@ -464,7 +490,7 @@ D:\code\python\python.exe -m uvicorn main:app --reload
 ```powershell
 # ① 跑测试（最快确认后端逻辑没崩）
 D:\code\python\python.exe -m pytest test -v
-#    预期：10 passed
+#    预期：12 passed
 
 # ② 接口通不通（要带 token，否则 401 是正常的）
 curl.exe -s http://127.0.0.1:8000/passage
@@ -475,6 +501,9 @@ D:\code\python\python.exe -c "import sqlite3;c=sqlite3.connect('mini-blog.db');p
 # ④ 端口谁在占（服务起不来的第一诊断）
 netstat -ano | Select-String ':8000'
 ```
+
+> ⚠️ **服务启动前必须先设 `MINI_BLOG_SECRET`**，否则 `main.py:21` 直接 `KeyError: 'MINI_BLOG_SECRET'` 起不来：
+> `$env:MINI_BLOG_SECRET="这里放 32 字节以上的随机串"`
 
 ### 7.3 改完怎么确认生效（**最容易出错的地方**）
 
@@ -546,13 +575,12 @@ await             → 真数据
 
 ---
 
-## 9. pytest 测试体系（2026-10-26 ~ 10-30 建立）
+## 9. pytest 测试体系（2026-10-26 ~ 10-31 建立）
 
-> 当前状态（2026-10-30 实测）：`test/` 下三个文件（`test_register.py` / `test_login.py` / `test_auth.py`）+ 根目录 `conftest.py`，**10 个用例全绿**，`1.57s`。
+> 当前状态（2026-10-31 实测）：`test/` 下五个文件（`test_register.py` / `test_login.py` / `test_auth.py` / `test_passage.py` / `test_author_name.py`）+ 根目录 `conftest.py`，**12 个用例全绿**，`2.27s`。
 > 命令：`D:\code\python\python.exe -m pytest test -v`
 
 ### 9.1 文件怎么组织
-
 | 规则 | 内容 |
 |---|---|
 | 目录 | 测试放 `test/`，`conftest.py` 放**项目根**（不是 `test/` 里） |
@@ -584,14 +612,18 @@ D:\code\python\python.exe -m pytest test -v -s
 
 ### 9.3 `conftest.py` 里有什么
 
-四个 fixture + 一段全局替换，`conftest.py` 共 48 行：
+四个 fixture + 一段全局替换 + 一行环境变量，`conftest.py` 共 50 行：
 
-| fixture | 干什么 | 依赖谁 |
+| fixture / 语句 | 干什么 | 依赖谁 |
 |---|---|---|
-| `clear`（`autouse=True`） | 每个用例前后清空两张表 | 无（自动跑） |
-| `client` | 返回 `TestClient(app)`，一个“假浏览器” | 无 |
-| `user` | 用随机用户名注册一个账号，返回 `(name, password)` | `client` |
-| `token` | 用 `user` 的账密登录，返回 `access_token` 字符串 | `client`, `user` |
+| `os.environ.setdefault(...)`（**第 2 行，必须在 import main 之前**） | 给测试进程注入一个假密钥，让 `main.py:21` 的 `os.environ["MINI_BLOG_SECRET"]` 有值 | 无 |
+| `override_get_db` + `app.dependency_overrides`（24-26 行） | 把真库换成内存库 | 无 |
+| `clear`（`autouse=True`，27-32 行） | 每个用例前后清空两张表 | 无（自动跑） |
+| `client`（33-35 行） | 返回 `TestClient(app)`，一个“假浏览器” | 无 |
+| `user`（36-43 行） | 用随机用户名注册一个账号，返回 `(name, password)` | `client` |
+| `token`（44-50 行） | 用 `user` 的账密登录，返回 `access_token` 字符串 | `client`, `user` |
+
+> ⚠️ **第 1-2 行的顺序是硬约束**：`import main` 在第 6 行，而 `main.py:21` 一被 import 就执行 `os.environ["MINI_BLOG_SECRET"]`。`setdefault` 放到第 6 行之后 → `KeyError`（§4-#17）。
 
 **fixture 链怎么串**：`token` 依赖 `user`，`user` 依赖 `client`。测试函数只要写 `def test_x(client, token)`，pytest 会**自动按依赖顺序**先把 `client` 准备好，再 `user`，再 `token` —— 不需要手写调用顺序，这是 fixture 最核心的机制。
 
@@ -647,15 +679,35 @@ def clear():
 | 测试名和内容对不上 | `test_register_duplicate` 里测的是短密码 | 一个用例只证明一件事，名字必须说出它证明什么 |
 | 该红的地方不红 | 断言太弱（只断 `status_code`，不断 `detail` 文案） | 一个用例至少断两样：状态码 + 关键字段 |
 
-### 9.6 现有 10 个用例覆盖了什么
+### 9.6 现有 12 个用例覆盖了什么
 
 | 文件 | 用例 | 证明什么 |
 |---|---|---|
-| `test_register.py` | 4 个 | 注册成功 / 用户名重复 / 密码太短 / 用户名太短 |
+| `test_register.py` | 4 个 | 注册成功 / 用户名重复（409） / 密码太短 / 用户名太短 |
 | `test_login.py` | 3 个 | 登录成功 / 密码错误 / 用户不存在（后两者都返 401，防用户名枚举） |
 | `test_auth.py` | 3 个 | 无 token → `Not authenticated` / 假 token → `token无效或已过期` / 真 token → 200 发布成功 |
+| `test_passage.py` | 1 个 | 带 token 请求 `GET /passage` → 200 且 body 是 `list` |
+| `test_author_name.py` | 1 个 | 用某用户 token 发帖后，读回来的那条 `author` 等于该用户名 |
 
-**还缺的**：`/passage` 读接口的用例、`author` 字段落库的用例、bcrypt 72 字节上限的用例。
+**还缺的**：
+1. bcrypt 72 字节上限（超长密码应返 422 而不是 500）
+2. `/passage` 空库时返回 `[]`（不是 `None`、不是 500）
+3. 注册后 `hashpassword` 列**不等于**明文密码（防止哪天有人把哈希改回明文）
+4. `GET /passage` 无 token → 401（鉴权覆盖到读接口，目前只测了写接口）
+5. 分页参数（等 `/passage` 支持 `page` 之后）
+
+### 9.7 变异测试：怎么证明你的测试真的在干活
+
+改坏一行代码，看测试会不会红。**红 = 有效；还是绿 = 这个断言是摆设。**
+
+2026-10-31 实测案例：
+
+| 改动 | 结果 | 说明 |
+|---|---|---|
+| `main.py:70` 的 `current_user` 改成 `"HACKED"` | `AssertionError: assert 'HACKED' == 'u_2383bedc'`，**1 failed** | `test_author_name.py:14` 的 author 断言有效 |
+| 改回来 | 12 passed | 回到基线，确认改动可逆 |
+
+**做法**：`Copy-Item main.py main.py.bak` → 改一处 → 跑 `pytest` → `Move-Item main.py.bak main.py -Force`。**改完必须恢复并重跑，确认回到全绿**，否则你会把一个坏改动留在工作区。
 
 ---
 
