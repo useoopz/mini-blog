@@ -23,7 +23,10 @@ cd mini-blog
 pip install -r requirements.txt
 ```
 
-装四个包：`fastapi` / `uvicorn` / `bcrypt` / `PyJWT`。
+装五个包：`fastapi` / `uvicorn` / `bcrypt` / `PyJWT` / `python-multipart`。
+
+> **`python-multipart` 是最容易漏的那个**（2026-11-02 实测踩到）：本机 12 个测试全绿，干净服务器上 `pip install -r requirements.txt` 之后启动直接崩 `Form data requires "python-multipart" to be installed`。根因：`/user_login` 收的是 `OAuth2PasswordRequestForm`（**表单**，不是 JSON），FastAPI 解析表单必须靠它；本机早就装了这个包，所以 `requirements.txt` 漏了它也测不出来。
+> **判据：`requirements.txt` 漏包，本地永远测不出来，只有干净环境会报。** 所以每次加依赖，先在空 venv 里 `pip install -r requirements.txt` 跑一次。
 
 > 要跑测试还得另外装：`pip install pytest httpx`（这两个还没进任何 requirements 文件，属于待还的技术债）。
 
@@ -116,3 +119,42 @@ echo ${#MINI_BLOG_SECRET}    # 输出 0 就是没设
 | HTTPS | 现在全是明文 HTTP，密码和 token 裸奔。需要 Nginx/Caddy 反代 + 证书 |
 | 数据库备份 | `mini-blog.db` 是单文件，挂了就全没。定时 `cp` 到别处 |
 | `pytest` / `httpx` 进 `requirements-dev.txt` | 换机器能跑服务但跑不了测试 |
+| 关掉旧博客的 8001 端口 | 旧站还跑在服务器上，写接口有鉴权、**读接口全公开**（`/passages` 返回 10 条帖子） |
+
+---
+
+## 四、部署当天踩到的坑（2026-11-02，Ubuntu 22.04 / 阿里云 ECS）
+
+### 坑 1：`requirements.txt` 漏 `python-multipart`，本机测不出来
+
+见上面第 2 步的说明。**这是本轮部署最有价值的一条。**
+
+### 坑 2：安全组「删规则」≠「关端口」
+
+想关掉不用的端口，在阿里云控制台逐条点了删除 —— 结果把 **22 / 80 / 443 三条一起删了**，SSH 瞬间断开，机器还在跑但进不去。
+
+**正确做法**：想限制某端口，点那一行的「编辑」，把授权对象从 `0.0.0.0/0` 改成 `你的IP/32`。只有确定永远不要的端口才删。
+
+**救回来**：控制台还能用 → 重新加回 22（`TCP 22/22`，`0.0.0.0/0`）→ 立刻恢复 SSH。
+
+### 坑 3：三种网络故障，长得完全不一样
+
+改完安全组之后，从外网探测拿到三种结果，正好凑成一张对照表：
+
+| 现象 | 典型延迟 | 含义 | 该查哪里 |
+|---|---|---|---|
+| **连上了** | 10-60ms | 链路通 + 服务在监听 | 没问题 |
+| **积极拒绝**（`Connection refused`） | ~2000ms | 链路通、**安全组已放行**，但对端没有进程监听该端口 | 查服务启没启、监听地址是 `127.0.0.1` 还是 `0.0.0.0` |
+| **超时**（`timed out`） | 6000ms+ | **包被静默丢弃**，通常是安全组没放行 | 查安全组入方向规则 |
+
+实战读数（2026-11-02 17:06 实测）：
+
+```
+22   : 通 13ms              ← 安全组放行 + sshd 在听
+80   : 积极拒绝 2074ms       ← 安全组放行，但没装 Nginx
+443  : 积极拒绝 2075ms       ← 同上
+8000 : 积极拒绝 2094ms       ← 安全组放行，但 uvicorn 没在跑
+8001 : 超时 7007ms          ← 安全组拦下，旧博客已封
+```
+
+**判据：先分辨「拒绝」还是「超时」，再决定往哪查 —— 一个在服务器内部，一个在门外面。**
