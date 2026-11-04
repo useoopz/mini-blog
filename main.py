@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Depends,HTTPException
+from fastapi import FastAPI,Depends,HTTPException,Query
 from fastapi.staticfiles import StaticFiles
 import sqlite3
 import time
@@ -57,10 +57,10 @@ def get_db():
     yield conn
     conn.close()#LOOKUPhttps://blog.csdn.net/mieleizhi0522/article/details/82142856
 @app.get("/passage")
-def read_passage(db=Depends(get_db),current_user=Depends(get_current_user)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
+def read_passage(db=Depends(get_db),current_user=Depends(get_current_user),page: int=Query(default=1,ge=1),page_size: int=Query(default=10,ge=1,le=100)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
     db.row_factory=sqlite3.Row
     cursor=db.cursor()
-    cursor.execute("SELECT * FROM passage")
+    cursor.execute("SELECT * FROM passage LIMIT ? OFFSET ?",(page_size,page_size*(page-1)))
     rows=cursor.fetchall()
     row=[dict(r) for r in rows]
     return row
