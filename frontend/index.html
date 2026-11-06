@@ -12,7 +12,7 @@
     <input id="content" placeholder="请输入内容">
     <button onclick="add_passage()">提交</button>
     <ul id="list"></ul>
-    <button onclick="prev_page()">上一页</button> <button onclick="next_page()">下一页</button>
+    <button id="btn_prev" onclick="prev_page()" disabled>上一页</button> <span id="page_now">第 1 页</span> <button id="btn_next" onclick="next_page()">下一页</button>
     <script>
         let page=1
         async function next_page() {
@@ -51,6 +51,13 @@
                     li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]
                     list.appendChild(li)
                 }
+                // 分页按钮状态：到底/到头就禁用，防止点出空列表
+                const btn_prev = document.getElementById("btn_prev")
+                const btn_next = document.getElementById("btn_next")
+                const page_now = document.getElementById("page_now")
+                btn_prev.disabled = (page <= 1)          // 第 1 页：没有上一页
+                btn_next.disabled = (data.length < 10)   // 不满一页：后面没有了
+                page_now.textContent = "第 " + page + " 页"
             }
         }
         async function add_passage(){
