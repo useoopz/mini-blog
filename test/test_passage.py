@@ -16,3 +16,9 @@ def test_new_passage(client,token):
 def test_wrong_passage(client,token):
     r=client.get("/passage?page=0",headers={"Authorization": f"Bearer {token}"})
     assert r.status_code==422
+
+def test_empty_passage(client,token):
+    # 空库必须返回 []，不是 None 也不是 500 —— 前端 for...in 直接崩在 None 上
+    r=client.get("/passage",headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code==200
+    assert r.json()==[]

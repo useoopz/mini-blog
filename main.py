@@ -2,7 +2,7 @@ from fastapi import FastAPI,Depends,HTTPException,Query
 from fastapi.staticfiles import StaticFiles
 import sqlite3
 import time
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field,field_validator
 import bcrypt
 import jwt
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
@@ -14,9 +14,23 @@ class AddPassage(BaseModel):
 class UserRegister(BaseModel):
     username: str=Field(min_length=3)
     password: str=Field(min_length=3)
+
+    @field_validator("password")
+    def validator_password(cls,name:str):
+        if len(name.encode("utf-8")) > 72:
+            raise ValueError("密码长度超过72字节")
+        else:
+            return name
 class UserLogin(BaseModel):
-    username: str
-    password: str
+    username: str=Field(min_length=3)
+    password: str=Field(min_length=3)
+
+    @field_validator("password")
+    def validator_password(cls,name:str):
+            if len(name.encode("utf-8")) > 72:
+                raise ValueError("密码长度超过72字节")
+            else:
+                return name
 app=FastAPI()
 secret=os.environ["MINI_BLOG_SECRET"]
 oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/user_login")
@@ -85,6 +99,7 @@ def user_register(user:UserRegister,db=Depends(get_db)):#LOOKUPhttps://blog.csdn
         return{"message":"注册成功"}   
 @app.post("/user_login")
 def user_login(user:OAuth2PasswordRequestForm=Depends(),db=Depends(get_db)):
+    if len(user.password.encode("utf-8")) > 72: raise HTTPException(422,"密码长度超出")
     cursor=db.cursor()
     cursor.execute("SELECT hashpassword FROM user WHERE username=?",(user.username,))
     row=cursor.fetchone() 
