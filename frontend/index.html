@@ -48,7 +48,11 @@
                 for (const j of data) {
                     const li = document.createElement("li");
                     j["author"]??="佚名"
-                    li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]
+                    li.textContent = j["title"]+"|"+j["content"]+"|"+j["date"]+"|"+j["author"]+" "
+                    const del = document.createElement("button")
+                    del.textContent = "删除"
+                    del.onclick = () => del_passage(j["id"])
+                    li.appendChild(del)
                     list.appendChild(li)
                 }
                 // 分页按钮状态：到底/到头就禁用，防止点出空列表
@@ -77,6 +81,17 @@
                 else if(response.status==422){alert(err.detail[0].msg)}
                 else{alert("出现了些故障")}
             
+        }
+        async function del_passage(id){
+            const response = await fetch(`/passage/${id}`, {
+                method: "delete",
+                headers: {"Authorization": "Bearer " + localStorage.getItem("access_token")}
+            })
+            if (response.ok){passage()}
+            else if (response.status==401){localStorage.removeItem("access_token");location.href="/login.html"}
+            else if (response.status==403){alert("不能删除别人的文章")}
+            else if (response.status==404){alert("文章不存在");passage()}
+            else{alert("出现了些故障")}
         }
         passage()
     </script>
