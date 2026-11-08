@@ -21,16 +21,6 @@ class UserRegister(BaseModel):
             raise ValueError("密码长度超过72字节")
         else:
             return name
-class UserLogin(BaseModel):
-    username: str=Field(min_length=3)
-    password: str=Field(min_length=3)
-
-    @field_validator("password")
-    def validator_password(cls,name:str):
-            if len(name.encode("utf-8")) > 72:
-                raise ValueError("密码长度超过72字节")
-            else:
-                return name
 app=FastAPI()
 secret=os.environ["MINI_BLOG_SECRET"]
 oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/user_login")
@@ -112,7 +102,19 @@ def user_login(user:OAuth2PasswordRequestForm=Depends(),db=Depends(get_db)):
         return{"message":"登陆成功","access_token":token}
     else:
         raise HTTPException(401,"用户名或密码错误")
-    
+@app.delete("/passage/{passage_id}")
+def delete_passage(passage_id: int,db=Depends(get_db),current_user=Depends(get_current_user)):
+    cursor=db.cursor()
+    cursor.execute("SELECT author FROM passage WHERE id=?",(passage_id,))
+    row=cursor.fetchone()
+    if row is None:
+        raise HTTPException(404,"文章不存在")
+    if row[0] != current_user:
+        raise HTTPException(403,"无权删除他人的文章")
+    cursor.execute("DELETE FROM passage WHERE id=?",(passage_id,))
+    db.commit()
+    return{"message":"删除成功"}
+
 app.mount("/",StaticFiles(directory="frontend",html=True))#LOOKUPhttps://fastapi.tiangolo.com/zh/tutorial/static-files/#use-staticfiles
 if __name__=="__main__":
     import uvicorn
