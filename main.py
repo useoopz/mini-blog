@@ -46,20 +46,25 @@ if "author" not in row:
     cursor.execute("ALTER TABLE passage ADD COLUMN author TEXT")
     conn.commit()
 conn.close()
-def get_current_user(token: str =Depends(oauth2_scheme)):
+def get_db():
+    conn=sqlite3.connect("mini-blog.db")
+    yield conn
+    conn.close()#LOOKUPhttps://blog.csdn.net/mieleizhi0522/article/details/82142856
+def get_current_user(token: str =Depends(oauth2_scheme),db=Depends(get_db)):
     try:
         payload=jwt.decode(token,secret,algorithms=["HS256"])
-        return payload["username"]
+        cursor=db.cursor()
+        cursor.execute("SELECT username FROM user WHERE username=?",(payload["username"],))
+        if cursor.fetchone() is not None:
+            return payload["username"]
+        else:
+            raise HTTPException(401,"token无效或已过期")
     except jwt.InvalidTokenError:
         raise HTTPException(401,"token无效或已过期")
 def hash_passaword(password):#LOOKUPhttps://docs.pingcode.com/baike/829063
     salt=bcrypt.gensalt()
     hashpassaword=bcrypt.hashpw(password.encode(),salt)
     return hashpassaword
-def get_db():
-    conn=sqlite3.connect("mini-blog.db")
-    yield conn
-    conn.close()#LOOKUPhttps://blog.csdn.net/mieleizhi0522/article/details/82142856
 @app.get("/passage")
 def read_passage(db=Depends(get_db),current_user=Depends(get_current_user),page: int=Query(default=1,ge=1),page_size: int=Query(default=10,ge=1,le=100)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
     db.row_factory=sqlite3.Row
