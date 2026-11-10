@@ -73,6 +73,14 @@ def read_passage(db=Depends(get_db),current_user=Depends(get_current_user),page:
     rows=cursor.fetchall()
     row=[dict(r) for r in rows]
     return row
+@app.get("/passage/mine")
+def read_passage_self(db=Depends(get_db),current_user=Depends(get_current_user),page: int=Query(default=1,ge=1),page_size: int=Query(default=10,ge=1,le=100)):
+    db.row_factory=sqlite3.Row
+    cursor=db.cursor()
+    cursor.execute("SELECT * FROM passage WHERE author=? LIMIT ? OFFSET ? ",(current_user,page_size,page_size*(page-1)))
+    rows=cursor.fetchall()
+    row=[dict(r) for r in rows]
+    return row
 @app.post("/passage_add")
 def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
     cursor=db.cursor()
