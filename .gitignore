@@ -2,3 +2,8 @@ __pycache__/
 *.db
 post.json
 .workbuddy/
+
+# 实测工具（不是业务代码，只读或自建临时库）
+explain.py
+seed_data.py
+demo_index.py

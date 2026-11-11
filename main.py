@@ -45,6 +45,7 @@ row=[r[1] for r in cursor.fetchall()]
 if "author" not in row:
     cursor.execute("ALTER TABLE passage ADD COLUMN author TEXT")
     conn.commit()
+cursor.execute("CREATE INDEX IF NOT EXISTS idx_author ON passage(author)")
 conn.close()
 def get_db():
     conn=sqlite3.connect("mini-blog.db")
