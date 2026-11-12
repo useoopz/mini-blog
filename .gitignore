@@ -7,3 +7,5 @@ post.json
 explain.py
 seed_data.py
 demo_index.py
+app.log
+*.log

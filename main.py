@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Depends,HTTPException,Query
+from fastapi import FastAPI,Depends,HTTPException,Query,Request
 from fastapi.staticfiles import StaticFiles
 import sqlite3
 import time
@@ -7,6 +7,7 @@ import bcrypt
 import jwt
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 import os
+import logging
 
 class AddPassage(BaseModel):
     title: str=Field(min_length=1)
@@ -22,6 +23,15 @@ class UserRegister(BaseModel):
         else:
             return name
 app=FastAPI()
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - start) * 1000
+    log.info(f"{request.method} {request.url.path} {response.status_code} {ms:.1f}ms")
+    return response
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", filename="app.log", encoding="utf-8")
+log = logging.getLogger(__name__)
 secret=os.environ["MINI_BLOG_SECRET"]
 oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/user_login")
 conn=sqlite3.connect("mini-blog.db")
