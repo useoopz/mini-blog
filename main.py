@@ -1,5 +1,6 @@
 from fastapi import FastAPI,Depends,HTTPException,Query,Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 import sqlite3
 import time
 from pydantic import BaseModel,Field,field_validator
@@ -8,6 +9,7 @@ import jwt
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 import os
 import logging
+
 
 class AddPassage(BaseModel):
     title: str=Field(min_length=1)
@@ -30,6 +32,10 @@ async def log_requests(request: Request, call_next):
     ms = (time.perf_counter() - start) * 1000
     log.info(f"{request.method} {request.url.path} {response.status_code} {ms:.1f}ms")
     return response
+@app.exception_handler(Exception)
+async def catch_all(request: Request, exc: Exception):
+    log.exception(f"{request.method} {request.url.path}")              
+    return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})   
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", filename="app.log", encoding="utf-8")
 log = logging.getLogger(__name__)
 secret=os.environ["MINI_BLOG_SECRET"]
