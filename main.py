@@ -9,6 +9,17 @@ import jwt
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 import os
 import logging
+import httpx
+import re
+
+async def fetch_title(url: str) -> str:
+    try:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(url)          
+            m = re.search(r"<title>(.*?)</title>",r.text,re.S |re.I)
+            return m.group(1) if m else""
+    except Exception:
+        return ""
 
 
 class AddPassage(BaseModel):
