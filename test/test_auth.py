@@ -15,7 +15,7 @@ def test_post_with_valid_token(client,token):
     r=client.post("/passage_add",
                 headers={"Authorization":f"Bearer {token}"},
                 json={"title":"ces","content":"ces"})  
-    assert r.status_code==200
+    assert r.status_code==201
     assert r.json()["message"]=="发布成功"
 
 def test_get_without_token(client):

@@ -98,14 +98,14 @@ def read_passage_self(db=Depends(get_db),current_user=Depends(get_current_user),
     rows=cursor.fetchall()
     row=[dict(r) for r in rows]
     return row
-@app.post("/passage_add")
+@app.post("/passage_add",status_code=201)
 def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
     cursor=db.cursor()
     date=time.strftime("%Y-%m-%d %H-%M-%S",time.localtime())
     cursor.execute("INSERT INTO passage (title,content,date,author) VALUES (?,?,?,?)",(passage.title,passage.content,date,current_user))
     db.commit()
     return{"message":"发布成功"}
-@app.post("/user_register")
+@app.post("/user_register",status_code=201)
 def user_register(user:UserRegister,db=Depends(get_db)):#LOOKUPhttps://blog.csdn.net/Dxy1239310216/article/details/149141071
     cursor=db.cursor()
     cursor.execute("SELECT username FROM user WHERE username=?",(user.username,))
@@ -144,7 +144,21 @@ def delete_passage(passage_id: int,db=Depends(get_db),current_user=Depends(get_c
     cursor.execute("DELETE FROM passage WHERE id=?",(passage_id,))
     db.commit()
     return{"message":"删除成功"}
-
+@app.put("/passage/{passage_id}")
+def update_passage(passage_id: int,
+                   passage: AddPassage,
+                   db=Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    cursor = db.cursor()
+    cursor.execute("SELECT author FROM passage WHERE id=?",(passage_id,))
+    row=cursor.fetchone()
+    if row is None:
+        raise HTTPException(404,"文章不存在")
+    elif row[0]!=current_user:
+        raise HTTPException(403,"作者不是您")
+    cursor.execute("UPDATE passage SET title=?,content=? WHERE id =?",(passage.title,passage.content,passage_id))
+    db.commit()
+    return{"msg":"更改成功"}
 app.mount("/",StaticFiles(directory="frontend",html=True))#LOOKUPhttps://fastapi.tiangolo.com/zh/tutorial/static-files/#use-staticfiles
 if __name__=="__main__":
     import uvicorn

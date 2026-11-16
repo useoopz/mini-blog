@@ -5,7 +5,7 @@ def test_register(client):
                         headers={"content-type": "application/json"},
                         json={"username":name,"password":password},
                             )
-    assert response.status_code==200
+    assert response.status_code==201
     assert response.json()["message"]=="注册成功"
 def test_register_duplicate(client):
     name="adm"

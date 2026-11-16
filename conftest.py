@@ -31,6 +31,11 @@ def clear():
     conn.commit()
     yield
 @pytest.fixture
+def conn_():
+    return conn
+
+
+@pytest.fixture
 def client():
     return TestClient(app) 
 @pytest.fixture
