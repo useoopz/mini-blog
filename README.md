@@ -13,7 +13,7 @@ pip install -r requirements.txt
 
 ### 2. 设密钥（**必须，否则启动即崩**）
 
-`main.py:21` 是 `secret=os.environ["MINI_BLOG_SECRET"]` —— 没设这个环境变量会直接 `KeyError` 退出。这是故意的：配置缺失要在启动时暴露，而不是留一个默认值悄悄生效。
+`main.py:52` 是 `secret=os.environ["MINI_BLOG_SECRET"]` —— 没设这个环境变量会直接 `KeyError` 退出。这是故意的：配置缺失要在启动时暴露，而不是留一个默认值悄悄生效。
 
 生成一个 32 字节以上的随机串：
 
@@ -43,14 +43,19 @@ python -m uvicorn main:app --reload
 
 ## 接口
 
-四个业务接口。**除注册和登录外都要带 token**。
+七个业务接口。**除注册和登录外都要带 token**。
 
-| 方法 | 路径 | 请求体 | 鉴权 |
-|---|---|---|---|
-| POST | `/user_register` | **JSON** `{"username","password"}`（都 ≥3 字符） | 无 |
-| POST | `/user_login` | **表单** `username=..&password=..` | 无 |
-| GET | `/passage` | — | ✅ |
-| POST | `/passage_add` | **JSON** `{"title","content"}` | ✅ |
+| 方法 | 路径 | 请求体 | 鉴权 | 成功状态 |
+|---|---|---|---|---|
+| POST | `/user_register` | **JSON** `{"username","password"}`（都 ≥3 字符） | 无 | 201 |
+| POST | `/user_login` | **表单** `username=..&password=..` | 无 | 200 |
+| GET | `/passage` | —（`?page=1&page_size=10`） | ✅ | 200 |
+| GET | `/passage/mine` | —（同上分页） | ✅ | 200 |
+| POST | `/passage_add` | **JSON** `{"title","content"}` | ✅ | 201 |
+| PUT | `/passage/{id}` | **JSON** `{"title","content"}` | ✅ | 200 |
+| DELETE | `/passage/{id}` | — | ✅ | 200 |
+
+失败路径：422 字段校验（`detail` 是**数组**）· 401 身份 · 403 不是你的文章 · 404 文章不存在 · 409 用户名已存在 · 500 服务器内部错误（`detail` 是**字符串**）。
 
 > ⚠️ 注册收 JSON、登录收**表单**，这是 `OAuth2PasswordRequestForm` 的要求 —— 两者写法不同不是笔误。
 
@@ -75,13 +80,25 @@ curl -X POST http://127.0.0.1:8000/passage_add \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJhbGciOi..." \
   -d '{"title":"第一篇","content":"hello"}'
-# → {"message":"发布成功"}
+# → 201 {"message":"发布成功"}
 #   标题或正文为空时返回 422
 
 # ④ 带着 token 读全部文章
 curl -s http://127.0.0.1:8000/passage \
   -H "Authorization: Bearer eyJhbGciOi..."
 # → [{"id":1,"title":"第一篇","content":"hello","date":"2026-11-01 15-22-06","author":"demo"}]
+
+# ⑤ 改自己的文章（id 是路径参数，不是 token 里的）
+curl -X PUT http://127.0.0.1:8000/passage/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOi..." \
+  -d '{"title":"改过的标题","content":"改过的正文"}'
+# → 200 {"msg":"更改成功"} / 404 文章不存在 / 403 作者不是您
+
+# ⑥ 删自己的文章
+curl -X DELETE http://127.0.0.1:8000/passage/1 \
+  -H "Authorization: Bearer eyJhbGciOi..."
+# → 200 {"message":"删除成功"} / 404 / 403
 ```
 
 **不带 token 访问 `/passage`** 返回 `401 {"detail":"Not authenticated"}`；
@@ -98,12 +115,22 @@ curl -s http://127.0.0.1:8000/passage \
 ## 测试
 
 ```bash
-python -m pytest test -v      # 预期 12 passed
+python -m pytest test -q      # 预期 35 passed
 ```
 
 必须用 `python -m pytest` 而不是直接 `pytest` —— 前者会把当前目录放进 `sys.path`，否则 `conftest.py` 里的 `from main import app` 会 `ModuleNotFoundError`。
 
 测试用**内存库**（`:memory:`）+ `dependency_overrides` 替换 `get_db`，不碰 `mini-blog.db`。
+
+跑测试还需要 `pytest`（`pip install pytest`，尚未写进 `requirements.txt`）。
+
+## 本地验证（不想用 curl 时）
+
+```bash
+python verify.py
+```
+
+不起服务、不开端口，用 `TestClient` 把「注册 → 登录 → 读列表 → 读我的 → 打一个不存在的路径」跑一遍，顺便在 `app.log` 里生成日志。
 
 ## 踩过的坑
 

@@ -25,14 +25,14 @@ pip install -r requirements.txt
 
 装五个包：`fastapi` / `uvicorn` / `bcrypt` / `PyJWT` / `python-multipart`。
 
-> **`python-multipart` 是最容易漏的那个**（2026-11-02 实测踩到）：本机 12 个测试全绿，干净服务器上 `pip install -r requirements.txt` 之后启动直接崩 `Form data requires "python-multipart" to be installed`。根因：`/user_login` 收的是 `OAuth2PasswordRequestForm`（**表单**，不是 JSON），FastAPI 解析表单必须靠它；本机早就装了这个包，所以 `requirements.txt` 漏了它也测不出来。
+> **`python-multipart` 是最容易漏的那个**（2026-11-02 实测踩到）：本机 35 个测试全绿，干净服务器上 `pip install -r requirements.txt` 之后启动直接崩 `Form data requires "python-multipart" to be installed`。根因：`/user_login` 收的是 `OAuth2PasswordRequestForm`（**表单**，不是 JSON），FastAPI 解析表单必须靠它；本机早就装了这个包，所以 `requirements.txt` 漏了它也测不出来。
 > **判据：`requirements.txt` 漏包，本地永远测不出来，只有干净环境会报。** 所以每次加依赖，先在空 venv 里 `pip install -r requirements.txt` 跑一次。
 
 > 要跑测试还得另外装：`pip install pytest httpx`（这两个还没进任何 requirements 文件，属于待还的技术债）。
 
 ### 3. 设环境变量（**最容易忘的一步**）
 
-`main.py:21` 是：
+`main.py:52` 是：
 
 ```python
 secret = os.environ["MINI_BLOG_SECRET"]
@@ -51,7 +51,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ### 5. 确认它真的在工作
 
 ```bash
-python -m pytest test -v          # 预期 12 passed
+python -m pytest test -q          # 预期 35 passed
 curl -s http://127.0.0.1:8000/passage   # 预期 401 Not authenticated —— 这是对的，说明服务活着且鉴权生效
 ```
 
