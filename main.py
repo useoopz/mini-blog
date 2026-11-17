@@ -15,7 +15,7 @@ import re
 async def fetch_title(url: str) -> str:
     try:
         async with httpx.AsyncClient() as c:
-            r = await c.get(url)          
+            r = await c.get(url,timeout=5)          
             m = re.search(r"<title>(.*?)</title>",r.text,re.S |re.I)
             return m.group(1) if m else""
     except Exception:
@@ -23,6 +23,7 @@ async def fetch_title(url: str) -> str:
 
 
 class AddPassage(BaseModel):
+    url: str | None=None
     title: str=Field(min_length=1)
     content: str=Field(min_length=1)
 class UserRegister(BaseModel):
@@ -110,10 +111,15 @@ def read_passage_self(db=Depends(get_db),current_user=Depends(get_current_user),
     row=[dict(r) for r in rows]
     return row
 @app.post("/passage_add",status_code=201)
-def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
+async def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
+    title=passage.title
+    if passage.url:
+        fetch=await fetch_title(passage.url)
+        if fetch:
+            title=fetch
     cursor=db.cursor()
     date=time.strftime("%Y-%m-%d %H-%M-%S",time.localtime())
-    cursor.execute("INSERT INTO passage (title,content,date,author) VALUES (?,?,?,?)",(passage.title,passage.content,date,current_user))
+    cursor.execute("INSERT INTO passage (title,content,date,author) VALUES (?,?,?,?)",(title,passage.content,date,current_user))
     db.commit()
     return{"message":"发布成功"}
 @app.post("/user_register",status_code=201)
