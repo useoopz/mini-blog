@@ -11,9 +11,34 @@ import os
 import logging
 import httpx
 import re
+import ipaddress
+import socket
+from urllib.parse import urlparse
+def validate_public_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("非法的 URL 协议或主机名")
 
+    try:
+        addr_infos = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError("域名解析失败") from exc
+
+    for info in addr_infos:
+        ip_str = info[4][0]
+        ip_obj = ipaddress.ip_address(ip_str)
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_reserved
+            or ip_obj.is_multicast
+            or ip_obj.is_unspecified
+        ):
+            raise ValueError(f"禁止访问内网或保留地址: {ip_str}")
 async def fetch_title(url: str) -> str:
     try:
+        validate_public_url(url)
         async with httpx.AsyncClient() as c:
             r = await c.get(url,timeout=5)          
             m = re.search(r"<title>(.*?)</title>",r.text,re.S |re.I)
@@ -31,11 +56,11 @@ class UserRegister(BaseModel):
     password: str=Field(min_length=3)
 
     @field_validator("password")
-    def validator_password(cls,name:str):
-        if len(name.encode("utf-8")) > 72:
+    def validator_password(cls,password:str):
+        if len(password.encode("utf-8")) > 72:
             raise ValueError("密码长度超过72字节")
         else:
-            return name
+            return password 
 app=FastAPI()
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
