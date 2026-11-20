@@ -120,13 +120,33 @@ def hash_passaword(password):#LOOKUPhttps://docs.pingcode.com/baike/829063
     hashpassaword=bcrypt.hashpw(password.encode(),salt)
     return hashpassaword
 @app.get("/passage")
-def read_passage(db=Depends(get_db),current_user=Depends(get_current_user),page: int=Query(default=1,ge=1),page_size: int=Query(default=10,ge=1,le=100)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
+def read_passage(db=Depends(get_db),current_user=Depends(get_current_user),cursor:int|None=Query(default=None, ge=1),limit:int=Query(default=10, ge=1, le=50)):#LOOKUPhttps://blog.csdn.net/NeverLate_gogogo/article/details/112472480
     db.row_factory=sqlite3.Row
-    cursor=db.cursor()
-    cursor.execute("SELECT * FROM passage LIMIT ? OFFSET ?",(page_size,page_size*(page-1)))
-    rows=cursor.fetchall()
-    row=[dict(r) for r in rows]
-    return row
+    cur=db.cursor()
+    if cursor is None:
+        cur.execute("SELECT * FROM passage ORDER BY id DESC LIMIT?",(limit+1,))
+        rows=cur.fetchall()
+        allow_row=[dict(r) for r in rows]
+        if len(allow_row)>limit:
+            more=True
+            item=allow_row[:limit]
+            return {"next_cursor":item[-1]["id"],"items":item,"has_more":more}
+        elif len(allow_row)<=limit:
+            more=False
+            item=allow_row
+            return{"next_cursor":None,"items":item,"has_more":more}
+    if cursor is not None:
+        cur.execute("SELECT * FROM passage WHERE id< ?ORDER BY id DESC LIMIT?",(cursor,limit+1))
+        rows=cur.fetchall()
+        allow_row=[dict(r) for r in rows]
+        if len(allow_row)>limit:
+            more=True
+            items=allow_row[:limit]
+            return {"next_cursor":items[-1]["id"],"items":items,"has_more":more}
+        elif len(allow_row)<=limit:
+            more=False
+            item=allow_row
+            return{"next_cursor":None,"items":item,"has_more":more}
 @app.get("/passage/mine")
 def read_passage_self(db=Depends(get_db),current_user=Depends(get_current_user),page: int=Query(default=1,ge=1),page_size: int=Query(default=10,ge=1,le=100)):
     db.row_factory=sqlite3.Row

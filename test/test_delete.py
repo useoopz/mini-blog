@@ -13,7 +13,7 @@ def _new_passage(client, token):
                 headers={"Authorization": f"Bearer {token}"},
                 json={"title": "t", "content": "c"})
     r = client.get("/passage", headers={"Authorization": f"Bearer {token}"})
-    return r.json()[0]["id"]
+    return r.json()["items"][0]["id"]
 
 
 def test_delete_own_passage(client, token):
@@ -22,7 +22,7 @@ def test_delete_own_passage(client, token):
     r = client.delete(f"/passage/{pid}", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["message"] == "删除成功"
-    left = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
+    left = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"]
     assert all(p["id"] != pid for p in left)
 
 
@@ -33,7 +33,7 @@ def test_delete_other_passage(client, token):
     r = client.delete(f"/passage/{pid}", headers={"Authorization": f"Bearer {other}"})
     assert r.status_code == 403
     # 而且真的没被删掉
-    left = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
+    left = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"]
     assert any(p["id"] == pid for p in left)
 
 

@@ -13,7 +13,7 @@ def _new_passage(client, token, title="t", content="c"):
                 headers={"Authorization": f"Bearer {token}"},
                 json={"title": title, "content": content})
     r = client.get("/passage", headers={"Authorization": f"Bearer {token}"})
-    return r.json()[0]["id"]
+    return r.json()["items"][0]["id"]
 
 
 def test_update_own_passage(client, token):
@@ -24,7 +24,7 @@ def test_update_own_passage(client, token):
                    json={"title": "新标题", "content": "新正文"})
     assert r.status_code == 200
 
-    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
+    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"]
     found = next((p for p in rows if p["id"] == pid), None)
     assert found is not None, "改完之后文章不见了"
     assert found["title"] == "新标题"
@@ -35,14 +35,14 @@ def test_update_keeps_date(client, token):
     # date 是发布时间，改内容不应该把它冲掉
     pid = _new_passage(client, token, title="原标题")
     before = next(p for p in client.get("/passage",
-                   headers={"Authorization": f"Bearer {token}"}).json() if p["id"] == pid)
+                   headers={"Authorization": f"Bearer {token}"}).json()["items"] if p["id"] == pid)
 
     client.put(f"/passage/{pid}",
                headers={"Authorization": f"Bearer {token}"},
                json={"title": "改过的标题", "content": "c"})
 
     after = next(p for p in client.get("/passage",
-                  headers={"Authorization": f"Bearer {token}"}).json() if p["id"] == pid)
+                  headers={"Authorization": f"Bearer {token}"}).json()["items"] if p["id"] == pid)
     assert after["date"] == before["date"]
 
 
@@ -56,7 +56,7 @@ def test_update_other_passage(client, token):
                    json={"title": "被改了", "content": "被改了"})
     assert r.status_code == 403
 
-    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
+    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"]
     found = next(p for p in rows if p["id"] == pid)
     assert found["title"] == "我的文章", "403 之后内容居然被改了"
 
@@ -81,7 +81,7 @@ def test_update_empty_title(client, token):
                    json={"title": "", "content": "x"})
     assert r.status_code == 422
     # 被拒了就不该改到库里
-    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
+    rows = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"]
     assert next(p for p in rows if p["id"] == pid)["title"] != ""
 
 def test_update_commits(client, token, conn_):

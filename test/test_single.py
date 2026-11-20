@@ -41,4 +41,4 @@ def test_mine_isolation(client):
     # 旧接口没被改坏：A 调 /passage 能看到全部 3 篇
     rall = client.get("/passage", headers={"Authorization": f"Bearer {ta}"})
     assert rall.status_code == 200
-    assert len(rall.json()) == 3
+    assert len(rall.json()["items"]) == 3

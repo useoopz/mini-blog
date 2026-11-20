@@ -9,6 +9,6 @@ def test_author(client, token, user):
     assert p.status_code == 201
     r = client.get("/passage", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
-    found = next((d for d in r.json() if d["title"] == title), None)
+    found = next((d for d in r.json()["items"] if d["title"] == title), None)
     assert found is not None, "没找到刚发的帖子"
     assert found["author"] == user[0]

@@ -30,7 +30,7 @@ def test_forged_token_cannot_write(client, token):
 
     # 而且库里真的没多出来
     left = client.get("/passage", headers={"Authorization": f"Bearer {token}"})
-    assert all(p["title"] != "hacked" for p in left.json())
+    assert all(p["title"] != "hacked" for p in left.json()["items"])
 
 
 def test_forged_token_cannot_delete(client, token):
@@ -38,7 +38,7 @@ def test_forged_token_cannot_delete(client, token):
     client.post("/passage_add",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"title": "t", "content": "c"})
-    pid = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()[0]["id"]
+    pid = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()["items"][0]["id"]
 
     fake = _forge_token("admin_owner")
     r = client.delete(f"/passage/{pid}", headers={"Authorization": f"Bearer {fake}"})
@@ -46,4 +46,4 @@ def test_forged_token_cannot_delete(client, token):
 
     # 原文还在
     left = client.get("/passage", headers={"Authorization": f"Bearer {token}"}).json()
-    assert any(p["id"] == pid for p in left)
+    assert any(p["id"] == pid for p in left["items"])

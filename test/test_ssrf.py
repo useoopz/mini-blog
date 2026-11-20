@@ -22,7 +22,7 @@ def test_ssrf_block_private_and_scheme(client, token, monkeypatch, bad_url):
     )
     assert r.status_code in (200,201)
     r1=client.get("/passage",headers={"Authorization": f"Bearer {token}"})
-    title=[item["title"] for item in r1.json()]
+    title=[item["title"] for item in r1.json()["items"]]
     assert "ces" in title
     # TODO: 补充断言 r.status_code in (200, 201)，并通过查询列表接口验证文章正常创建
 

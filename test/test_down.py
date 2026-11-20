@@ -9,5 +9,5 @@ def test_send_passage(client,token,monkeypatch):
                             json={"title":"ces","content":"ces","url": "http://example.com"}) 
     assert r.status_code==201
     r1=client.get("/passage",headers={"Authorization":f"Bearer {token}"})
-    titles = [item["title"] for item in r1.json()]
+    titles = [item["title"] for item in r1.json()["items"]]
     assert "ces" in titles
