@@ -155,6 +155,15 @@ def read_passage_self(db=Depends(get_db),current_user=Depends(get_current_user),
     rows=cursor.fetchall()
     row=[dict(r) for r in rows]
     return row
+@app.get("/passage/search")
+def passage_search(db=Depends(get_db),current_user=Depends(get_current_user),q: str=Query(min_length=1,max_length=50)):
+    db.row_factory = sqlite3.Row
+    cursor=db.cursor()
+    parame=f"%{q}%"
+    cursor.execute("SELECT * FROM passage WHERE title LIKE ? ORDER BY id DESC",(parame,))
+    row=cursor.fetchall()
+    items=[dict(r) for r in row]
+    return items
 @app.post("/passage_add",status_code=201)
 async def passage_add(passage: AddPassage,db=Depends(get_db),current_user=Depends(get_current_user)):
     title=passage.title
